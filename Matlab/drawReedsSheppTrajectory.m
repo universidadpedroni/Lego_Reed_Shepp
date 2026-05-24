@@ -44,7 +44,7 @@ for i = 1:length(path)
     % Dibujar el último auto
 quiver(x, y, cos(theta), sin(theta), vector_size, 'r', 'LineWidth', 2, 'MaxHeadSize', 2);
 drawCar(x, y, theta, L_car, -psi_max);
-fprintf("Encoder: %.2f \t L(%d): %.2f\n", encoder, i, path(i).distance);
+% fprintf("Encoder: %.2f \t L(%d): %.2f\n", encoder, i, path(i).distance);
 
 end
 
