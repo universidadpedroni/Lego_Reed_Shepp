@@ -393,7 +393,7 @@ def get_optimal_path(paths):
 def run_test():
     x = 120.0
     y = 60.0
-    phi = -90
+    phi = umath.radians(-90)  # las funciones path* esperan el angulo en radianes
     
     # Llamada a todas las funciones de path
     for i in range(1, 13):

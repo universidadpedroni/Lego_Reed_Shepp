@@ -1,3 +1,21 @@
+# =============================================================================
+# SOLUCION DE PROBLEMAS - Conexion Bluetooth (BLE) con el hub
+# =============================================================================
+# Sintoma: pybricksdev o la extension de VSCode fallan al conectar, con un
+#   error tipo "Could not find all requested services" o
+#   "BleakCharacteristicNotFoundError: Characteristic ... was not found".
+#   Pybricks Code (en el navegador) conecta bien, pero pybricksdev no.
+#
+# Solucion (la que funciono):
+#   1. Cerrar todo lo conectado al hub: Pybricks Code y las pestañas de
+#      Chrome. Una sola conexion BLE a la vez.
+#   2. Apagar y prender el hub.
+#   3. Administrador de dispositivos -> menu Ver -> "Mostrar dispositivos
+#      ocultos" -> seccion Bluetooth -> buscar el hub ("Obi Juan's Hub" o
+#      similar) -> clic derecho -> Desinstalar el dispositivo.
+#   4. Volver a correr pybricksdev. Windows redescubre la tabla GATT de cero.
+# =============================================================================
+
 from pybricks.hubs import TechnicHub
 from pybricks.parameters import Color, Direction, Port, Stop
 from pybricks.tools import wait
@@ -7,7 +25,7 @@ from pybricks.pupdevices import Motor
 from reeds_shepp import get_all_paths, get_optimal_path, normalize_start_and_end_point, denormalize_distance_in_path
 from vehicleConstants import L_car, psi_max, v, max_angle ,max_angle_power, max_drive_power, r_turn_min
 from controlConstants import KP_POSITION, KI_POSITION, KP_STEERING, KI_STEERING
-from debugFunctions import infoTrayectoria, infoControl
+from debugFunctions import infoControl
 import umath
 
 
@@ -29,7 +47,7 @@ def resetAllSensors():
     rear.reset_angle(0)
 
 def controlDelVehiculo(path, show_debug_info=False, h=1):
-    elapsed_time_max = 30
+    elapsed_time_max = 30  # [seg] presupuesto TOTAL del recorrido (watchdog)
     elapsed_time = 0
     resetAllSensors()  # Asegúrate de que esta función esté definida
     
@@ -40,7 +58,7 @@ def controlDelVehiculo(path, show_debug_info=False, h=1):
         print("Tramo: ", i + 1)
         # obtener los valores del tramo:
         distance = path[i]['distance']
-        steering = path[i]['steering']
+        steer_dir = path[i]['steering']   # -1 LEFT / 0 STRAIGHT / 1 RIGHT (no confundir con el Motor 'steering')
         gear = path[i]['gear']
                     
         # Reinicio de las variables
@@ -51,7 +69,7 @@ def controlDelVehiculo(path, show_debug_info=False, h=1):
         steering_I = 0.0
         position_I = 0.0
 
-        while (abs(position_vehicle) <= distance): #falta agregar la condicion de elapsed_time
+        while abs(position_vehicle) <= distance and (elapsed_time / 1000.0) < elapsed_time_max:
             # Verificar que los motores no se han bloqueado
             if rear.stalled() or front.stalled():
                 print("Motor bloqueado. Terminando")
@@ -60,10 +78,12 @@ def controlDelVehiculo(path, show_debug_info=False, h=1):
                 return
             
             # Generar los nuevos valores de referencia.
-            if  abs(position_reference) < abs(distance):
+            # Posicion y rumbo parametrizan el mismo arco por longitud de arco:
+            # ambos avanzan juntos y SOLO mientras la referencia no llego al final
+            # del tramo. Si no, el rumbo de referencia se pasa de largo del tramo.
+            if abs(position_reference) < abs(distance):
                 position_reference += gear * delta_s
-            steering_reference +=  gear * steering * delta_s / r_turn_min # revisar esta línea
-            # revisar si va un signo - o +
+                steering_reference += gear * steer_dir * delta_s / r_turn_min
             # Adquirir el estado actual del vehículo
             position_vehicle = 0.5 * (front.angle() + rear.angle()) * ANGLE_TO_CM
             steering_vehicle = hub.imu.heading()  # `hub` debe ser un objeto previamente definido
@@ -76,7 +96,7 @@ def controlDelVehiculo(path, show_debug_info=False, h=1):
             position_P = KP_POSITION * position_error
             position_I += KI_POSITION * position_error
             steering_P = KP_STEERING * steering_error
-            steering_I= KI_STEERING * steering_error
+            steering_I += KI_STEERING * steering_error
 
             position_command = int(min(max(position_P + position_I, -max_drive_power), max_drive_power))
             
@@ -98,6 +118,13 @@ def controlDelVehiculo(path, show_debug_info=False, h=1):
         infoControl(elapsed_time / 1000.0, position_reference, position_vehicle, position_error, position_command,
                             steering_reference, steering_vehicle, steering_error, steering_command)
         
+        # Watchdog: si se agoto el presupuesto de tiempo sin completar el recorrido, abortar.
+        if (elapsed_time / 1000.0) >= elapsed_time_max:
+            print("Timeout: {} seg sin completar el recorrido. Terminando.".format(elapsed_time_max))
+            audi.drive_power(0)
+            audi.steer(0)
+            return
+
         #print("Llegó al final del tramo {}".format(i + 1))
     # Detener el vehículo y la dirección después de completar el recorrido
     audi.drive_power(0)
