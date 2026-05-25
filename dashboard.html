@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard Auto LEGO - Reeds-Shepp</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#0f172a; --panel:#1e293b; --panel2:#273449; --line:#334155;
+    --txt:#e2e8f0; --txt2:#94a3b8; --accent:#38bdf8; --ref:#f59e0b;
+    --real:#38bdf8; --ok:#22c55e; --danger:#ef4444; --plan:#64748b;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Segoe UI',Roboto,system-ui,sans-serif;background:var(--bg);
+       color:var(--txt);padding:16px;font-size:14px;}
+  h1{font-size:18px;font-weight:600;}
+  h2{font-size:13px;font-weight:600;color:var(--txt2);text-transform:uppercase;
+     letter-spacing:.5px;margin-bottom:10px;}
+  header{display:flex;justify-content:space-between;align-items:center;
+         margin-bottom:14px;flex-wrap:wrap;gap:10px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+        padding:14px;}
+  .row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;}
+  .row > .card{flex:1;min-width:260px;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  @media(max-width:880px){.grid{grid-template-columns:1fr;}}
+  button{font-family:inherit;font-size:13px;font-weight:600;border:none;
+         border-radius:7px;padding:9px 14px;cursor:pointer;color:#fff;}
+  button:disabled{opacity:.4;cursor:not-allowed;}
+  .btn-accent{background:var(--accent);color:#06283d;}
+  .btn-ok{background:var(--ok);}
+  .btn-danger{background:var(--danger);}
+  .btn-ghost{background:var(--panel2);color:var(--txt);border:1px solid var(--line);}
+  .btn-big{padding:14px;font-size:15px;width:100%;}
+  input{font-family:inherit;font-size:13px;background:var(--panel2);
+        color:var(--txt);border:1px solid var(--line);border-radius:6px;
+        padding:6px 8px;width:100%;}
+  table{width:100%;border-collapse:collapse;}
+  th{font-size:11px;color:var(--txt2);text-transform:uppercase;text-align:left;
+     padding:4px 4px;}
+  td{padding:3px 4px;}
+  .pill{padding:4px 10px;border-radius:999px;font-size:12px;font-weight:600;
+        background:var(--panel2);border:1px solid var(--line);}
+  .pill.on{background:#064e3b;border-color:#10b981;color:#6ee7b7;}
+  .pill.off{background:#3f1d1d;border-color:#b91c1c;color:#fca5a5;}
+  .chart-box{position:relative;height:240px;}
+  .chart-box.xy{height:340px;}
+  .stat{display:flex;justify-content:space-between;padding:5px 0;
+        border-bottom:1px solid var(--line);}
+  .stat:last-child{border-bottom:none;}
+  .stat b{color:var(--accent);font-variant-numeric:tabular-nums;}
+  .log{background:#0b1220;border:1px solid var(--line);border-radius:8px;
+       padding:8px;height:120px;overflow-y:auto;font-family:Consolas,monospace;
+       font-size:11px;line-height:1.5;color:var(--txt2);}
+  .log .tx{color:#7dd3fc;}
+  .log .err{color:#fca5a5;}
+  .hint{font-size:11px;color:var(--txt2);margin-top:6px;}
+  .field{margin-bottom:8px;}
+  .field label{display:block;font-size:11px;color:var(--txt2);margin-bottom:3px;}
+  .btn-row{display:flex;gap:8px;margin-top:8px;}
+  .x-rm{background:var(--panel2);color:#fca5a5;padding:4px 9px;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#128663; Dashboard Auto LEGO &mdash; Reeds-Shepp</h1>
+  <div style="display:flex;gap:10px;align-items:center;">
+    <span id="connPill" class="pill off">Desconectado</span>
+    <button id="connectBtn" class="btn-accent">Conectar hub</button>
+  </div>
+</header>
+
+<!-- ============ CONTROLES ============ -->
+<div class="row">
+
+  <div class="card">
+    <h2>Waypoints (x, y, rumbo)</h2>
+    <table id="wpTable">
+      <thead><tr><th>#</th><th>X [cm]</th><th>Y [cm]</th><th>Rumbo [&deg;]</th><th></th></tr></thead>
+      <tbody id="wpBody"></tbody>
+    </table>
+    <div class="btn-row">
+      <button id="addWpBtn" class="btn-ghost">+ Agregar punto</button>
+      <button id="sendPathBtn" class="btn-ghost" disabled>Enviar PATH</button>
+    </div>
+    <div class="hint">El primer punto es la pose inicial del auto. Minimo 2 puntos.</div>
+  </div>
+
+  <div class="card">
+    <h2>Ganancias PID</h2>
+    <div class="field"><label>Kp posici&oacute;n</label><input id="kpPos" type="number" step="0.1" value="10"></div>
+    <div class="field"><label>Ki posici&oacute;n</label><input id="kiPos" type="number" step="0.01" value="0.05"></div>
+    <div class="field"><label>Kp rumbo</label><input id="kpSt" type="number" step="0.1" value="14"></div>
+    <div class="field"><label>Ki rumbo</label><input id="kiSt" type="number" step="0.01" value="0.05"></div>
+    <button id="sendPidBtn" class="btn-ghost" disabled style="width:100%;">Enviar PID</button>
+  </div>
+
+  <div class="card">
+    <h2>Ensayo</h2>
+    <button id="startBtn" class="btn-ok btn-big" disabled>&#9654; INICIAR ENSAYO</button>
+    <div style="height:8px;"></div>
+    <button id="stopBtn" class="btn-danger btn-big" disabled>&#9632; STOP</button>
+    <div style="margin-top:12px;">
+      <div class="stat"><span>Estado</span><b id="stRun">Inactivo</b></div>
+      <div class="stat"><span>Tramo</span><b id="stSeg">&ndash;</b></div>
+      <div class="stat"><span>Tiempo</span><b id="stTime">0.0 s</b></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ============ GRAFICOS ============ -->
+<div class="grid">
+
+  <div class="card">
+    <h2>Posici&oacute;n &mdash; referencia vs real</h2>
+    <div class="chart-box"><canvas id="chartPos"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>Rumbo &mdash; referencia vs real</h2>
+    <div class="chart-box"><canvas id="chartHead"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>Trayectoria XY &mdash; planificada vs real</h2>
+    <div class="chart-box xy"><canvas id="chartXY"></canvas></div>
+  </div>
+
+  <div class="card">
+    <h2>M&eacute;tricas y registro</h2>
+    <div class="stat"><span>Error posici&oacute;n (en vivo)</span><b id="mPosLive">&ndash;</b></div>
+    <div class="stat"><span>Error rumbo (en vivo)</span><b id="mHeadLive">&ndash;</b></div>
+    <div class="stat"><span>RMS / m&aacute;x posici&oacute;n</span><b id="mPos">&ndash;</b></div>
+    <div class="stat"><span>RMS / m&aacute;x rumbo</span><b id="mHead">&ndash;</b></div>
+    <div style="height:10px;"></div>
+    <div id="log" class="log"></div>
+  </div>
+
+</div>
+
+<script>
+"use strict";
+
+// ---- Protocolo BLE de Pybricks --------------------------------------------
+const PB_SERVICE = "c5f50001-8280-46da-89f4-6d8051e4aeef";
+const PB_CHAR    = "c5f50002-8280-46da-89f4-6d8051e4aeef";  // comando / evento
+const PB_CAPS    = "c5f50003-8280-46da-89f4-6d8051e4aeef";  // capacidades
+const CMD_START_PROGRAM = 0x01;   // arrancar el programa del hub
+const CMD_WRITE_STDIN   = 0x06;   // escribir en stdin del programa
+const EVT_WRITE_STDOUT  = 0x01;   // evento: el hub escribio en stdout
+
+let device=null, gattChar=null, maxWrite=20, rxBuffer="";
+let connected=false, hubReady=false, running=false;
+let posErr=[], headErr=[];
+
+// ---- Helpers de UI --------------------------------------------------------
+const $ = (id)=>document.getElementById(id);
+function log(msg, cls){
+  const el=$("log");
+  const div=document.createElement("div");
+  if(cls) div.className=cls;
+  div.textContent=msg;
+  el.appendChild(div);
+  while(el.childElementCount>80) el.removeChild(el.firstChild);
+  el.scrollTop=el.scrollHeight;
+}
+function setConn(state){
+  const p=$("connPill");
+  if(state==="hub"){ p.textContent="Hub listo"; p.className="pill on"; }
+  else if(state==="conn"){ p.textContent="Conectado (esperando hub)"; p.className="pill"; }
+  else { p.textContent="Desconectado"; p.className="pill off"; }
+}
+function refreshButtons(){
+  $("sendPathBtn").disabled = !hubReady || running;
+  $("sendPidBtn").disabled  = !hubReady || running;
+  $("startBtn").disabled    = !hubReady || running;
+  $("stopBtn").disabled     = !connected || !running;
+  $("connectBtn").textContent = connected ? "Desconectar" : "Conectar hub";
+}
+
+// ---- Waypoints ------------------------------------------------------------
+function addWaypoint(x,y,h){
+  const tb=$("wpBody");
+  const tr=document.createElement("tr");
+  tr.innerHTML =
+    "<td class='idx'></td>"+
+    "<td><input type='number' step='1' value='"+x+"'></td>"+
+    "<td><input type='number' step='1' value='"+y+"'></td>"+
+    "<td><input type='number' step='1' value='"+h+"'></td>"+
+    "<td><button class='x-rm'>&times;</button></td>";
+  tr.querySelector(".x-rm").onclick=()=>{ tr.remove(); renumber(); };
+  tb.appendChild(tr);
+  renumber();
+}
+function renumber(){
+  const rows=$("wpBody").querySelectorAll("tr");
+  rows.forEach((r,i)=>{ r.querySelector(".idx").textContent=(i+1); });
+}
+function getPathString(){
+  const rows=$("wpBody").querySelectorAll("tr");
+  const parts=[];
+  for(const r of rows){
+    const v=r.querySelectorAll("input");
+    parts.push(Number(v[0].value)+","+Number(v[1].value)+","+Number(v[2].value));
+  }
+  return parts.join(";");
+}
+function getPidString(){
+  return [Number($("kpPos").value),Number($("kiPos").value),
+          Number($("kpSt").value),Number($("kiSt").value)].join(",");
+}
+
+// ---- Graficos -------------------------------------------------------------
+let chartPos, chartHead, chartXY;
+const COL = {ref:"#f59e0b", real:"#38bdf8", plan:"#64748b"};
+
+function mkTimeChart(canvasId, yLabel){
+  return new Chart($(canvasId), {
+    type:"line",
+    data:{datasets:[
+      {label:"Referencia",data:[],borderColor:COL.ref,borderDash:[6,4],
+       borderWidth:2,pointRadius:0,tension:0},
+      {label:"Real",data:[],borderColor:COL.real,borderWidth:2,
+       pointRadius:0,tension:0}
+    ]},
+    options:{animation:false,responsive:true,maintainAspectRatio:false,
+      scales:{
+        x:{type:"linear",title:{display:true,text:"tiempo [s]",color:"#94a3b8"},
+           ticks:{color:"#94a3b8"},grid:{color:"#334155"}},
+        y:{title:{display:true,text:yLabel,color:"#94a3b8"},
+           ticks:{color:"#94a3b8"},grid:{color:"#334155"}}},
+      plugins:{legend:{labels:{color:"#e2e8f0"}}}}
+  });
+}
+function mkXYChart(){
+  return new Chart($("chartXY"), {
+    type:"line",
+    data:{datasets:[
+      {label:"Planificada",data:[],borderColor:COL.plan,borderDash:[6,4],
+       borderWidth:2,pointRadius:0,tension:0,showLine:true},
+      {label:"Real",data:[],borderColor:COL.real,borderWidth:2,
+       pointRadius:0,tension:0,showLine:true}
+    ]},
+    options:{animation:false,responsive:true,maintainAspectRatio:false,
+      scales:{
+        x:{type:"linear",title:{display:true,text:"Y [cm]",color:"#94a3b8"},
+           ticks:{color:"#94a3b8"},grid:{color:"#334155"}},
+        y:{title:{display:true,text:"X [cm]",color:"#94a3b8"},
+           ticks:{color:"#94a3b8"},grid:{color:"#334155"}}},
+      plugins:{legend:{labels:{color:"#e2e8f0"}}}}
+  });
+}
+function initCharts(){
+  chartPos  = mkTimeChart("chartPos","posición [cm]");
+  chartHead = mkTimeChart("chartHead","rumbo [°]");
+  chartXY   = mkXYChart();
+}
+function clearCharts(){
+  for(const c of [chartPos,chartHead,chartXY])
+    c.data.datasets.forEach(d=>d.data=[]);
+  chartPos.update("none"); chartHead.update("none"); chartXY.update("none");
+}
+// Mantiene el plot XY con escala igual en ambos ejes (1 cm = 1 cm).
+function squareXY(){
+  let xs=[], ys=[];
+  for(const d of chartXY.data.datasets) for(const p of d.data){xs.push(p.x);ys.push(p.y);}
+  if(xs.length<2) return;
+  let minX=Math.min(...xs),maxX=Math.max(...xs);
+  let minY=Math.min(...ys),maxY=Math.max(...ys);
+  const cx=(minX+maxX)/2, cy=(minY+maxY)/2;
+  let half=Math.max(maxX-minX,maxY-minY)/2; half=Math.max(half,10)*1.1;
+  chartXY.options.scales.x.min=cx-half; chartXY.options.scales.x.max=cx+half;
+  chartXY.options.scales.y.min=cy-half; chartXY.options.scales.y.max=cy+half;
+}
+
+// ---- BLE: conexion --------------------------------------------------------
+async function toggleConnection(){
+  if(connected){ if(device&&device.gatt.connected) device.gatt.disconnect(); return; }
+  if(!navigator.bluetooth){
+    alert("Este navegador no soporta Web Bluetooth. Usa Chrome o Edge de escritorio.");
+    return;
+  }
+  try{
+    device = await navigator.bluetooth.requestDevice({
+      filters:[{services:[PB_SERVICE]}], optionalServices:[PB_SERVICE]
+    });
+    device.addEventListener("gattserverdisconnected", onDisconnected);
+    const server  = await device.gatt.connect();
+    const service = await server.getPrimaryService(PB_SERVICE);
+    gattChar = await service.getCharacteristic(PB_CHAR);
+    try{
+      const caps = await service.getCharacteristic(PB_CAPS);
+      const dv = await caps.readValue();
+      maxWrite = dv.getUint16(0,true) || 20;
+    }catch(e){ maxWrite = 20; }
+    await gattChar.startNotifications();
+    gattChar.addEventListener("characteristicvaluechanged", onNotify);
+    connected=true; hubReady=false; setConn("conn"); refreshButtons();
+    log("Conectado a "+(device.name||"hub")+" (write max "+maxWrite+")","tx");
+    // Intentar arrancar el programa del hub y sincronizar.
+    try{ await gattChar.writeValueWithResponse(new Uint8Array([CMD_START_PROGRAM])); }catch(e){}
+    setTimeout(()=>{ if(connected) sendCommand("PING"); }, 1500);
+    setTimeout(()=>{ if(connected&&!hubReady)
+      log("Sin respuesta del hub. Presiona el boton del hub para arrancar el programa.","err");
+    }, 4000);
+  }catch(e){ log("No se pudo conectar: "+e.message,"err"); }
+}
+function onDisconnected(){
+  connected=false; hubReady=false; running=false; gattChar=null;
+  setConn("off"); refreshButtons();
+  $("stRun").textContent="Inactivo";
+  log("Hub desconectado.","err");
+}
+
+// ---- BLE: enviar comandos -------------------------------------------------
+async function sendStdin(text){
+  if(!gattChar) return;
+  const payload=new TextEncoder().encode(text);
+  const chunk=Math.max(1,maxWrite-1);
+  for(let i=0;i<payload.length;i+=chunk){
+    const slice=payload.slice(i,i+chunk);
+    const packet=new Uint8Array(slice.length+1);
+    packet[0]=CMD_WRITE_STDIN; packet.set(slice,1);
+    await gattChar.writeValueWithResponse(packet);
+  }
+}
+async function sendCommand(cmd){
+  await sendStdin(cmd+"\n");
+  if(cmd!=="PING") log("> "+cmd,"tx");
+}
+const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+
+// ---- BLE: recibir ---------------------------------------------------------
+function onNotify(ev){
+  const data=new Uint8Array(ev.target.value.buffer);
+  if(data[0]!==EVT_WRITE_STDOUT) return;
+  rxBuffer += new TextDecoder().decode(data.slice(1));
+  let idx;
+  while((idx=rxBuffer.indexOf("\n"))>=0){
+    const line=rxBuffer.slice(0,idx).replace(/\r$/,"");
+    rxBuffer=rxBuffer.slice(idx+1);
+    if(line) handleLine(line);
+  }
+}
+function handleLine(line){
+  if(line.startsWith("T ")){ addTelemetry(line.slice(2)); return; }
+  if(line.startsWith("PLAN ")){ addPlan(line.slice(5)); log("Trayectoria planificada recibida."); return; }
+  log(line);
+  if(line==="RDY"){
+    if(!hubReady){ hubReady=true; setConn("hub"); refreshButtons();
+      log("Hub listo para recibir comandos."); }
+  }
+  else if(line.startsWith("SEG ")){
+    const p=line.split(" "); $("stSeg").textContent=p[1]+" / "+p[2];
+  }
+  else if(line.startsWith("END ")){ onRunEnd(line.slice(4).trim()); }
+  else if(line.startsWith("ERR ")){ log(line,"err"); }
+}
+
+// ---- Telemetria -----------------------------------------------------------
+function addTelemetry(csv){
+  const f=csv.split(",").map(Number);
+  if(f.length<11) return;
+  const t=f[0], pr=f[1], pv=f[2], pe=f[3], sr=f[5], sv=f[6], se=f[7], x=f[9], y=f[10];
+  chartPos.data.datasets[0].data.push({x:t,y:pr});
+  chartPos.data.datasets[1].data.push({x:t,y:pv});
+  chartHead.data.datasets[0].data.push({x:t,y:sr});
+  chartHead.data.datasets[1].data.push({x:t,y:sv});
+  chartXY.data.datasets[1].data.push({x:y,y:x});
+  posErr.push(pe); headErr.push(se);
+  $("stTime").textContent=t.toFixed(1)+" s";
+  $("mPosLive").textContent=pe.toFixed(2)+" cm";
+  $("mHeadLive").textContent=se.toFixed(2)+" °";
+  squareXY();
+  chartPos.update("none"); chartHead.update("none"); chartXY.update("none");
+}
+function addPlan(str){
+  const ds=chartXY.data.datasets[0];
+  for(const pair of str.split(";")){
+    const c=pair.split(","); if(c.length!==2) continue;
+    ds.data.push({x:Number(c[1]),y:Number(c[0])});
+  }
+  squareXY(); chartXY.update("none");
+}
+
+// ---- Ensayo ---------------------------------------------------------------
+async function onStart(){
+  const path=getPathString();
+  if(path.split(";").length<2){ alert("Cargá al menos 2 waypoints."); return; }
+  clearCharts(); posErr=[]; headErr=[];
+  $("mPos").textContent="–"; $("mHead").textContent="–";
+  $("mPosLive").textContent="–"; $("mHeadLive").textContent="–";
+  running=true; refreshButtons();
+  $("stRun").textContent="En curso"; $("stSeg").textContent="–";
+  $("stTime").textContent="0.0 s";
+  try{
+    await sendCommand("PATH "+path);
+    await sleep(150);
+    await sendCommand("PID "+getPidString());
+    await sleep(150);
+    await sendCommand("START");
+  }catch(e){ log("Error al iniciar: "+e.message,"err"); running=false; refreshButtons(); }
+}
+async function onStop(){
+  try{ await sendCommand("STOP"); }catch(e){}
+}
+function onRunEnd(status){
+  running=false; refreshButtons();
+  const txt={ok:"Completado",stop:"Detenido (STOP)",stall:"Motor bloqueado",
+             timeout:"Timeout",error:"Error de trayectoria"};
+  $("stRun").textContent=txt[status]||status;
+  if(posErr.length){
+    $("mPos").textContent = rms(posErr).toFixed(2)+" / "+amax(posErr).toFixed(2)+" cm";
+    $("mHead").textContent= rms(headErr).toFixed(2)+" / "+amax(headErr).toFixed(2)+" °";
+  }
+}
+function rms(a){ let s=0; for(const v of a) s+=v*v; return Math.sqrt(s/a.length); }
+function amax(a){ let m=0; for(const v of a) m=Math.max(m,Math.abs(v)); return m; }
+
+// ---- Arranque -------------------------------------------------------------
+window.addEventListener("load",()=>{
+  initCharts();
+  addWaypoint(0,0,0);
+  addWaypoint(120,60,-90);
+  $("connectBtn").onclick=toggleConnection;
+  $("addWpBtn").onclick=()=>addWaypoint(0,0,0);
+  $("sendPathBtn").onclick=()=>sendCommand("PATH "+getPathString());
+  $("sendPidBtn").onclick =()=>sendCommand("PID "+getPidString());
+  $("startBtn").onclick=onStart;
+  $("stopBtn").onclick =onStop;
+  refreshButtons();
+  log("Dashboard listo. Conecta el hub para empezar.");
+});
+</script>
+</body>
+</html>
