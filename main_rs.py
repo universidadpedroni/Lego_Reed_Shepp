@@ -48,7 +48,7 @@ from pybricks.tools import wait, StopWatch
 from pybricks.robotics import Car
 from pybricks.pupdevices import Motor
 
-from reeds_shepp import get_all_paths, get_optimal_path, normalize_start_and_end_point, denormalize_distance_in_path
+from reeds_shepp import get_best_path, normalize_start_and_end_point, denormalize_distance_in_path
 from vehicleConstants import v, max_angle_power, max_drive_power, r_turn_min
 from controlConstants import KP_POSITION, KI_POSITION, KP_STEERING, KI_STEERING
 import umath
@@ -314,14 +314,13 @@ def run_trajectory(PATH):
     seg_total = 0
     for i in range(len(PATH) - 1):
         start_point, end_point = normalize_start_and_end_point(PATH[i], PATH[i + 1], r_turn_min)
-        paths = get_all_paths(start_point, end_point)
-        idx = get_optimal_path(paths)
-        if idx < 0:
+        best = get_best_path(start_point, end_point)
+        if best is None:
             print("ERR sin solucion Reeds-Shepp en el tramo {}".format(i + 1))
             print("END error")
             hub.light.on(Color.RED)
             return
-        leg = denormalize_distance_in_path(paths[idx], r_turn_min)
+        leg = denormalize_distance_in_path(best, r_turn_min)
         legs.append(leg)
         seg_total += len(leg)
         gc.collect()
@@ -353,8 +352,7 @@ def main():
     setup()
     PATH = None
     print("RDY")
-    print("VER 6 mem-fix")
-    print("Usa dashboard.html para cargar PATH, ajustar PID y arrancar el ensayo.")
+    print("VER 7 rs-stream")
 
     while True:
         line = read_command()

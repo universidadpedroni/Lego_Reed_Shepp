@@ -1,0 +1,33 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="arquitectura_del_sistema" id="d-arquitectura_del_sistema">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="980" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="n11" value="PC / Navegador
+
+dashboard.html
+Chart.js · Web Bluetooth" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F6F8;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="60" y="300" width="280" height="210" as="geometry"/></mxCell>
+        <mxCell id="n12" value="LEGO Technic Hub
+
+main_rs.py
+MicroPython · Pybricks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F6F8;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="560" y="280" width="300" height="250" as="geometry"/></mxCell>
+        <mxCell id="n13" value="BLE  —  PATH · PID · START · STOP" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2C6E8F;strokeWidth=2;endArrow=block;endFill=1;fontColor=#2C6E8F;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n11" target="n12"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n14" value="telemetría  —  T · PLAN · SEG · END" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C2741C;strokeWidth=2;endArrow=block;endFill=1;fontColor=#C2741C;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n12" target="n11"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n15" value="Motor dirección
+Puerto D" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3ECDD;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="360" y="700" width="210" height="120" as="geometry"/></mxCell>
+        <mxCell id="n16" value="Motor tracción
+Puerto B (delantero)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF2F7;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="620" y="700" width="210" height="120" as="geometry"/></mxCell>
+        <mxCell id="n17" value="Motor tracción
+Puerto A (trasero)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF2F7;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="880" y="700" width="210" height="120" as="geometry"/></mxCell>
+        <mxCell id="n18" value="IMU integrada
+rumbo / heading" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3ECDD;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="1140" y="700" width="210" height="120" as="geometry"/></mxCell>
+        <mxCell id="n19" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n12" target="n15"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n20" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n12" target="n16"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n21" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n12" target="n17"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n22" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n12" target="n18"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n23" value="Cada motor de tracción incluye un encoder incremental (odometría)" style="text;html=1;align=center;verticalAlign=middle;fontColor=#5C6B79;fontSize=12;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="360" y="850" width="990" height="30" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

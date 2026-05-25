@@ -1,0 +1,29 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="lazo_pi_direccion" id="d-lazo_pi_direccion">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1500" pageHeight="640" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="n11" value="Lazo de control de dirección / rumbo (PI)" style="text;html=1;align=center;verticalAlign=middle;fontColor=#1D3557;fontSize=18;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="40" y="20" width="1420" height="40" as="geometry"/></mxCell>
+        <mxCell id="n12" value="r_head" style="text;html=1;align=center;verticalAlign=middle;fontColor=#C2741C;fontSize=16;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="70" y="250" width="110" height="50" as="geometry"/></mxCell>
+        <mxCell id="n13" value="&#931;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=22;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="220" y="245" width="70" height="70" as="geometry"/></mxCell>
+        <mxCell id="n14" value="PI dirección
+u = Kp·e + Ki·Σe" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF2F7;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="360" y="215" width="210" height="130" as="geometry"/></mxCell>
+        <mxCell id="n15" value="Saturación" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F6F8;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="640" y="230" width="150" height="100" as="geometry"/></mxCell>
+        <mxCell id="n16" value="Motor
+dirección" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3ECDD;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="860" y="215" width="180" height="130" as="geometry"/></mxCell>
+        <mxCell id="n17" value="Vehículo
+(planta)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCE6EC;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="1110" y="215" width="160" height="130" as="geometry"/></mxCell>
+        <mxCell id="n18" value="IMU
+hub.imu.heading()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3ECDD;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="800" y="430" width="300" height="110" as="geometry"/></mxCell>
+        <mxCell id="n19" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C2741C;strokeWidth=2;endArrow=block;endFill=1;fontColor=#C2741C;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n12" target="n13"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n20" value="error" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n13" target="n14"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n21" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n14" target="n15"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n22" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n15" target="n16"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n23" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n16" target="n17"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n24" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n17" target="n18"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n25" value="−  rumbo medido" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2C6E8F;strokeWidth=2;endArrow=block;endFill=1;fontColor=#2C6E8F;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n18" target="n13"><mxGeometry relative="1" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

@@ -1,4 +1,5 @@
 import umath
+import gc
 #import math as umath
 
 FORWARD = 1
@@ -386,6 +387,36 @@ def get_optimal_path(paths):
             min_distance_index = i
     
     return min_distance_index
+
+def get_best_path(start_point, end_point):
+    """Camino Reeds-Shepp mas corto. Evalua las variantes de a una y se
+    queda solo con la mejor, sin materializar las 48 a la vez: la RAM del
+    Technic Hub no alcanza. Devuelve el path o None si no hay solucion."""
+    path_fns = [path1, path2, path3, path4, path5, path6,
+                path7, path8, path9, path10, path11, path12]
+
+    x, y, theta = change_of_basis(start_point, end_point)
+
+    best = None
+    best_len = 0.0
+
+    for get_path in path_fns:
+        variants = (get_path(x, y, theta),
+                    timeflip(get_path(-x, y, -theta)),
+                    reflect(get_path(x, -y, -theta)),
+                    reflect(timeflip(get_path(-x, -y, theta))))
+        for v in variants:
+            if not v:
+                continue
+            d = 0.0
+            for p in v:
+                d += p['distance']
+            if best is None or d < best_len:
+                best_len = d
+                best = v
+        gc.collect()
+
+    return best
 
 
 

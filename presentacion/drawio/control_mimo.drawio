@@ -1,0 +1,36 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="control_mimo" id="d-control_mimo">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1700" pageHeight="1000" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="n11" value="Generador
+de referencias
+(vehículo virtual)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7EEE9;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="40" y="360" width="190" height="220" as="geometry"/></mxCell>
+        <mxCell id="n12" value="&#931;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=22;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="330" y="200" width="70" height="70" as="geometry"/></mxCell>
+        <mxCell id="n13" value="&#931;" style="ellipse;whiteSpace=wrap;html=1;fillColor=#FFFFFF;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=22;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="330" y="600" width="70" height="70" as="geometry"/></mxCell>
+        <mxCell id="n14" value="PI
+posición" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF2F7;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="480" y="165" width="200" height="140" as="geometry"/></mxCell>
+        <mxCell id="n15" value="PI
+dirección" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF2F7;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="480" y="565" width="200" height="140" as="geometry"/></mxCell>
+        <mxCell id="n16" value="Vehículo Ackermann
+(planta MIMO)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#DCE6EC;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="800" y="200" width="240" height="470" as="geometry"/></mxCell>
+        <mxCell id="n17" value="Encoders
+incrementales" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3ECDD;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="1180" y="165" width="220" height="140" as="geometry"/></mxCell>
+        <mxCell id="n18" value="IMU
+(rumbo)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F3ECDD;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="1180" y="565" width="220" height="140" as="geometry"/></mxCell>
+        <mxCell id="n19" value="r_pos" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C2741C;strokeWidth=2;endArrow=block;endFill=1;fontColor=#C2741C;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n11" target="n12"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n20" value="r_head" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C2741C;strokeWidth=2;endArrow=block;endFill=1;fontColor=#C2741C;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n11" target="n13"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n21" value="e_pos" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n12" target="n14"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n22" value="e_head" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n13" target="n15"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n23" value="comando tracción" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n14" target="n16"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n24" value="comando dirección" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n15" target="n16"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n25" value="posición s" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n16" target="n17"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n26" value="rumbo ψ" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n16" target="n18"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n27" value="−  posición medida" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2C6E8F;strokeWidth=2;endArrow=block;endFill=1;fontColor=#2C6E8F;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n17" target="n12"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n28" value="−  rumbo medido" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2C6E8F;strokeWidth=2;endArrow=block;endFill=1;fontColor=#2C6E8F;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n18" target="n13"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n29" value="La planta es MIMO (2 entradas → 2 salidas) y está acoplada. El diseño la descompone en dos lazos SISO: posición medida con encoders, rumbo con la IMU." style="text;html=1;align=center;verticalAlign=middle;fontColor=#243441;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="40" y="760" width="1360" height="60" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

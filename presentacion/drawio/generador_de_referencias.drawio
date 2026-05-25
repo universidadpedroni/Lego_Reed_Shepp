@@ -1,0 +1,46 @@
+<mxfile host="app.diagrams.net" type="device">
+  <diagram name="generador_de_referencias" id="d-generador_de_referencias">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="820" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="n11" value="Tramo Reeds-Shepp
+
+distance
+steering (±1, 0)
+gear (±1)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7EEE9;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="40" y="90" width="210" height="180" as="geometry"/></mxCell>
+        <mxCell id="n12" value="Reloj del lazo
+
+tick h = 1 ms
+Δs = h·v / 1000" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F6F8;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="40" y="400" width="210" height="150" as="geometry"/></mxCell>
+        <mxCell id="n13" value="Integrador de POSICIÓN
+
+r_pos += gear · Δs
+(línea 251)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF2F7;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="380" y="110" width="340" height="150" as="geometry"/></mxCell>
+        <mxCell id="n14" value="Integrador de RUMBO
+
+r_head += gear · steering · Δs / r_turn_min
+(línea 252)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#EEF2F7;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="380" y="390" width="340" height="160" as="geometry"/></mxCell>
+        <mxCell id="n15" value="Compuerta
+
+avanza mientras
+|r_pos| &lt; distance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F4F6F8;strokeColor=#1D3557;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="820" y="250" width="200" height="170" as="geometry"/></mxCell>
+        <mxCell id="n16" value="r_pos(t)
+referencia
+de posición" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7EEE9;strokeColor=#2C6E8F;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="1160" y="110" width="200" height="140" as="geometry"/></mxCell>
+        <mxCell id="n17" value="r_head(t)
+referencia
+de rumbo" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#E7EEE9;strokeColor=#2C6E8F;strokeWidth=2;fontColor=#243441;fontSize=15;fontStyle=1;verticalAlign=middle;arcSize=8;" vertex="1" parent="1"><mxGeometry x="1160" y="400" width="200" height="140" as="geometry"/></mxCell>
+        <mxCell id="n18" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n11" target="n13"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n19" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n11" target="n14"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n20" value="Δs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C2741C;strokeWidth=2;endArrow=block;endFill=1;fontColor=#C2741C;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n12" target="n13"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n21" value="Δs" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#C2741C;strokeWidth=2;endArrow=block;endFill=1;fontColor=#C2741C;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n12" target="n14"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n22" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n13" target="n15"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n23" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#243441;strokeWidth=2;endArrow=block;endFill=1;fontColor=#243441;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n14" target="n15"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n24" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2C6E8F;strokeWidth=2;endArrow=block;endFill=1;fontColor=#2C6E8F;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n13" target="n16"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n25" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#2C6E8F;strokeWidth=2;endArrow=block;endFill=1;fontColor=#2C6E8F;fontSize=13;fontStyle=1;dashed=0;" edge="1" parent="1" source="n14" target="n17"><mxGeometry relative="1" as="geometry"/></mxCell>
+        <mxCell id="n26" value="Vehículo virtual: en cada ms se avanza Δs sobre el arco planificado. Posición y rumbo de ese punto son las referencias (acción anticipativa)." style="text;html=1;align=center;verticalAlign=middle;fontColor=#243441;fontSize=13;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="40" y="600" width="1320" height="60" as="geometry"/></mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
