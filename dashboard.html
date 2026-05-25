@@ -22,9 +22,14 @@
   .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;
         padding:14px;}
   .row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;}
-  .row > .card{flex:1;min-width:260px;}
+  .row > .card{flex:1;min-width:220px;}
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
-  @media(max-width:880px){.grid{grid-template-columns:1fr;}}
+  .grid .tall{grid-column:1;grid-row:1 / span 2;display:flex;flex-direction:column;}
+  .grid .tall .chart-box{flex:1;height:auto;min-height:340px;}
+  @media(max-width:880px){
+    .grid{grid-template-columns:1fr;}
+    .grid .tall{grid-column:auto;grid-row:auto;}
+  }
   button{font-family:inherit;font-size:13px;font-weight:600;border:none;
          border-radius:7px;padding:9px 14px;cursor:pointer;color:#fff;}
   button:disabled{opacity:.4;cursor:not-allowed;}
@@ -51,7 +56,7 @@
   .stat:last-child{border-bottom:none;}
   .stat b{color:var(--accent);font-variant-numeric:tabular-nums;}
   .log{background:#0b1220;border:1px solid var(--line);border-radius:8px;
-       padding:8px;height:120px;overflow-y:auto;font-family:Consolas,monospace;
+       padding:8px;height:100px;overflow-y:auto;font-family:Consolas,monospace;
        font-size:11px;line-height:1.5;color:var(--txt2);}
   .log .tx{color:#7dd3fc;}
   .log .err{color:#fca5a5;}
@@ -60,6 +65,10 @@
   .field label{display:block;font-size:11px;color:var(--txt2);margin-bottom:3px;}
   .btn-row{display:flex;gap:8px;margin-top:8px;}
   .x-rm{background:var(--panel2);color:#fca5a5;padding:4px 9px;}
+  .pi-split{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .pi-part + .pi-part{border-left:1px solid var(--line);padding-left:14px;}
+  .pi-part h3{font-size:11px;font-weight:600;color:var(--txt2);
+              text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
 </style>
 </head>
 <body>
@@ -89,12 +98,22 @@
   </div>
 
   <div class="card">
-    <h2>Ganancias PID</h2>
-    <div class="field"><label>Kp posici&oacute;n</label><input id="kpPos" type="number" step="0.1" value="10"></div>
-    <div class="field"><label>Ki posici&oacute;n</label><input id="kiPos" type="number" step="0.01" value="0.05"></div>
-    <div class="field"><label>Kp rumbo</label><input id="kpSt" type="number" step="0.1" value="14"></div>
-    <div class="field"><label>Ki rumbo</label><input id="kiSt" type="number" step="0.01" value="0.05"></div>
-    <button id="sendPidBtn" class="btn-ghost" disabled style="width:100%;">Enviar PID</button>
+    <h2>Ganancias PI</h2>
+    <div class="pi-split">
+      <div class="pi-part">
+        <h3>PI posici&oacute;n</h3>
+        <div class="field"><label>Kp</label><input id="kpPos" type="number" step="0.1" value="10"></div>
+        <div class="field"><label>Ki</label><input id="kiPos" type="number" step="0.01" value="0.05"></div>
+        <button id="sendPiPosBtn" class="btn-ghost" disabled style="width:100%;">Enviar</button>
+      </div>
+      <div class="pi-part">
+        <h3>PI rumbo</h3>
+        <div class="field"><label>Kp</label><input id="kpSt" type="number" step="0.1" value="14"></div>
+        <div class="field"><label>Ki</label><input id="kiSt" type="number" step="0.01" value="0.05"></div>
+        <button id="sendPiStBtn" class="btn-ghost" disabled style="width:100%;">Enviar</button>
+      </div>
+    </div>
+    <div class="hint">Cada &laquo;Enviar&raquo; manda el PI completo (posici&oacute;n + rumbo).</div>
   </div>
 
   <div class="card">
@@ -109,10 +128,25 @@
     </div>
   </div>
 
+  <div class="card">
+    <h2>M&eacute;tricas y registro</h2>
+    <div class="stat"><span>Error posici&oacute;n (en vivo)</span><b id="mPosLive">&ndash;</b></div>
+    <div class="stat"><span>Error rumbo (en vivo)</span><b id="mHeadLive">&ndash;</b></div>
+    <div class="stat"><span>RMS / m&aacute;x posici&oacute;n</span><b id="mPos">&ndash;</b></div>
+    <div class="stat"><span>RMS / m&aacute;x rumbo</span><b id="mHead">&ndash;</b></div>
+    <div style="height:10px;"></div>
+    <div id="log" class="log"></div>
+  </div>
+
 </div>
 
 <!-- ============ GRAFICOS ============ -->
 <div class="grid">
+
+  <div class="card tall">
+    <h2>Trayectoria XY &mdash; planificada vs real</h2>
+    <div class="chart-box xy"><canvas id="chartXY"></canvas></div>
+  </div>
 
   <div class="card">
     <h2>Posici&oacute;n &mdash; referencia vs real</h2>
@@ -122,21 +156,6 @@
   <div class="card">
     <h2>Rumbo &mdash; referencia vs real</h2>
     <div class="chart-box"><canvas id="chartHead"></canvas></div>
-  </div>
-
-  <div class="card">
-    <h2>Trayectoria XY &mdash; planificada vs real</h2>
-    <div class="chart-box xy"><canvas id="chartXY"></canvas></div>
-  </div>
-
-  <div class="card">
-    <h2>M&eacute;tricas y registro</h2>
-    <div class="stat"><span>Error posici&oacute;n (en vivo)</span><b id="mPosLive">&ndash;</b></div>
-    <div class="stat"><span>Error rumbo (en vivo)</span><b id="mHeadLive">&ndash;</b></div>
-    <div class="stat"><span>RMS / m&aacute;x posici&oacute;n</span><b id="mPos">&ndash;</b></div>
-    <div class="stat"><span>RMS / m&aacute;x rumbo</span><b id="mHead">&ndash;</b></div>
-    <div style="height:10px;"></div>
-    <div id="log" class="log"></div>
   </div>
 
 </div>
@@ -175,7 +194,8 @@ function setConn(state){
 }
 function refreshButtons(){
   $("sendPathBtn").disabled = !hubReady || running;
-  $("sendPidBtn").disabled  = !hubReady || running;
+  $("sendPiPosBtn").disabled = !hubReady || running;
+  $("sendPiStBtn").disabled  = !hubReady || running;
   $("startBtn").disabled    = !hubReady || running;
   $("stopBtn").disabled     = !connected || !running;
   $("connectBtn").textContent = connected ? "Desconectar" : "Conectar hub";
@@ -428,7 +448,8 @@ window.addEventListener("load",()=>{
   $("connectBtn").onclick=toggleConnection;
   $("addWpBtn").onclick=()=>addWaypoint(0,0,0);
   $("sendPathBtn").onclick=()=>sendCommand("PATH "+getPathString());
-  $("sendPidBtn").onclick =()=>sendCommand("PID "+getPidString());
+  $("sendPiPosBtn").onclick=()=>sendCommand("PID "+getPidString());
+  $("sendPiStBtn").onclick =()=>sendCommand("PID "+getPidString());
   $("startBtn").onclick=onStart;
   $("stopBtn").onclick =onStop;
   refreshButtons();
