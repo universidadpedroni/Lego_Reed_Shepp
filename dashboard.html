@@ -233,9 +233,10 @@ function addWaypoint(x,y,h){
     "<td><input type='number' step='1' value='"+y+"'></td>"+
     "<td><input type='number' step='1' value='"+h+"'></td>"+
     "<td><button class='x-rm'>&times;</button></td>";
-  tr.querySelector(".x-rm").onclick=()=>{ tr.remove(); renumber(); };
+  tr.querySelector(".x-rm").onclick=()=>{ tr.remove(); renumber(); refreshWaypoints(); };
   tb.appendChild(tr);
   renumber();
+  refreshWaypoints();
 }
 function renumber(){
   const rows=$("wpBody").querySelectorAll("tr");
@@ -257,7 +258,43 @@ function getPidString(){
 
 // ---- Graficos -------------------------------------------------------------
 let chartPos, chartHead, chartXY, chartErrPos, chartErrHead;
-const COL = {ref:"#f59e0b", real:"#38bdf8", plan:"#64748b", err:"#ef4444"};
+const COL = {ref:"#f59e0b", real:"#38bdf8", plan:"#64748b", err:"#ef4444", wp:"#facc15"};
+
+// Plugin que dibuja una flechita en cada waypoint indicando su rumbo.
+// La data del dataset 'Waypoints' viene como {x: Y_mundo, y: X_mundo, h: grados}
+// porque el chart tiene el eje X invertido (datos Y) y el Y vertical (datos X).
+const waypointArrowPlugin = {
+  id: 'waypointArrows',
+  afterDatasetsDraw(chart){
+    const ds = chart.data.datasets.find(d => d.label === 'Waypoints');
+    if(!ds || !ds.data || !ds.data.length) return;
+    const ctx = chart.ctx;
+    const xS = chart.scales.x, yS = chart.scales.y;
+    const arrowLen = 18; // cm
+    ctx.save();
+    ctx.strokeStyle = COL.wp;
+    ctx.fillStyle   = COL.wp;
+    ctx.lineWidth   = 2;
+    for(const p of ds.data){
+      const Xw = p.y, Yw = p.x;
+      const h  = (p.h || 0) * Math.PI / 180;
+      const tipX = Xw + arrowLen * Math.cos(h);
+      const tipY = Yw + arrowLen * Math.sin(h);
+      const px = xS.getPixelForValue(Yw),  py = yS.getPixelForValue(Xw);
+      const tpx= xS.getPixelForValue(tipY), tpy= yS.getPixelForValue(tipX);
+      // asta
+      ctx.beginPath(); ctx.moveTo(px,py); ctx.lineTo(tpx,tpy); ctx.stroke();
+      // punta de flecha
+      const a = Math.atan2(tpy-py, tpx-px), hl = 8;
+      ctx.beginPath();
+      ctx.moveTo(tpx, tpy);
+      ctx.lineTo(tpx - hl*Math.cos(a - Math.PI/6), tpy - hl*Math.sin(a - Math.PI/6));
+      ctx.lineTo(tpx - hl*Math.cos(a + Math.PI/6), tpy - hl*Math.sin(a + Math.PI/6));
+      ctx.closePath(); ctx.fill();
+    }
+    ctx.restore();
+  }
+};
 
 function mkTimeChart(canvasId, yLabel){
   return new Chart($(canvasId), {
@@ -284,7 +321,9 @@ function mkXYChart(){
       {label:"Planificada",data:[],borderColor:COL.plan,borderDash:[6,4],
        borderWidth:2,pointRadius:0,tension:0,showLine:true},
       {label:"Real",data:[],borderColor:COL.real,borderWidth:2,
-       pointRadius:0,tension:0,showLine:true}
+       pointRadius:0,tension:0,showLine:true},
+      {label:"Waypoints",data:[],backgroundColor:COL.wp,borderColor:COL.wp,
+       pointRadius:5,pointHoverRadius:7,showLine:false}
     ]},
     options:{animation:false,responsive:true,maintainAspectRatio:false,
       scales:{
@@ -293,7 +332,8 @@ function mkXYChart(){
            ticks:{color:"#94a3b8"},grid:{color:"#334155"}},
         y:{title:{display:true,text:"X [cm]",color:"#94a3b8"},
            ticks:{color:"#94a3b8"},grid:{color:"#334155"}}},
-      plugins:{legend:{labels:{color:"#e2e8f0"}}}}
+      plugins:{legend:{labels:{color:"#e2e8f0"}}}},
+    plugins:[waypointArrowPlugin]
   });
 }
 function mkErrorChart(canvasId, yLabel){
@@ -320,10 +360,28 @@ function initCharts(){
   chartErrHead = mkErrorChart("chartErrHead","error rumbo [°]");
 }
 function clearCharts(){
-  for(const c of [chartPos,chartHead,chartXY,chartErrPos,chartErrHead])
+  for(const c of [chartPos,chartHead,chartErrPos,chartErrHead])
     c.data.datasets.forEach(d=>d.data=[]);
+  // En chartXY no tocamos el dataset de waypoints, solo planificada/real.
+  chartXY.data.datasets[0].data = [];
+  chartXY.data.datasets[1].data = [];
   chartPos.update("none"); chartHead.update("none"); chartXY.update("none");
   chartErrPos.update("none"); chartErrHead.update("none");
+}
+function refreshWaypoints(){
+  if(!chartXY) return;
+  const rows = $("wpBody").querySelectorAll("tr");
+  const data = [];
+  for(const r of rows){
+    const v = r.querySelectorAll("input");
+    // chart x-axis = Y_mundo, chart y-axis = X_mundo (ejes invertidos)
+    data.push({x: Number(v[1].value), y: Number(v[0].value), h: Number(v[2].value)});
+  }
+  const ds = chartXY.data.datasets.find(d => d.label === 'Waypoints');
+  if(!ds) return;
+  ds.data = data;
+  squareXY();
+  chartXY.update("none");
 }
 // Mantiene el plot XY con escala igual en ambos ejes (1 cm = 1 cm).
 function squareXY(){
@@ -499,7 +557,10 @@ window.addEventListener("load",()=>{
   $("sendPiStBtn").onclick =()=>sendCommand("PID "+getPidString());
   $("startBtn").onclick=onStart;
   $("stopBtn").onclick =onStop;
+  // Refresca los marcadores de waypoints cada vez que se edita un input.
+  $("wpBody").addEventListener("input", refreshWaypoints);
   refreshButtons();
+  refreshWaypoints();
   log("Dashboard listo. Conecta el hub para empezar.");
 });
 </script>
