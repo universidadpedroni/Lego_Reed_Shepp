@@ -22,6 +22,7 @@
 # El dashboard manda comandos, uno por linea terminada en \n:
 #   PATH x,y,h;x,y,h;...            waypoints (x,y en cm, h en grados)
 #   PID kp_pos,ki_pos,kp_st,ki_st   ganancias de los PID
+#   ALG RS|DUBINS                   elige el planner (default RS)
 #   START                          calcula la trayectoria y arranca el ensayo
 #   STOP                           frena el auto de inmediato
 #   PING                           el hub responde RDY (para sincronizar)
@@ -41,6 +42,24 @@
 #   sv rumbo real [grados]   se error rumbo [grados]       sc comando direccion
 #   x  posicion X global [cm]   y posicion Y global [cm]
 # =============================================================================
+#
+# =============================================================================
+# NOTA SOBRE CONVENCION DE SIGNO DEL RUMBO PARA LA VISUALIZACION
+# =============================================================================
+# El planner (reeds_shepp / dubinsPathPlanning) usa LEFT=-1 y el IMU del hub
+# trabaja en la misma convencion ("compass": CW positivo). El lazo de control
+# funciona perfecto porque ambos coinciden.
+#
+# Para INTEGRAR (x, y) con las formulas estandar dx=cos(h)*ds, dy=sin(h)*ds
+# necesitamos que el rumbo este en convencion matematica (CCW positivo), si
+# no la trayectoria sale espejada contra Y. Por eso al integrar invertimos
+# el signo del rumbo en dos lugares:
+#   - stream_plan:   thl -= gear * steer_dir * ds / r_turn_min
+#   - controlDelVehiculo (odometria viva):   heading_rad = -radians(IMU)
+# Estos dos cambios SOLO afectan la grafica del dashboard. El lazo PI sigue
+# usando steering_vehicle = hub.imu.heading() crudo, asi que el control no
+# se altera.
+# =============================================================================
 
 from pybricks.hubs import TechnicHub
 from pybricks.parameters import Color, Direction, Port
@@ -49,6 +68,7 @@ from pybricks.robotics import Car
 from pybricks.pupdevices import Motor
 
 from reeds_shepp import get_best_path, normalize_start_and_end_point, denormalize_distance_in_path
+from dubinsPathPlanning import get_best_dubins
 from vehicleConstants import v, max_angle_power, max_drive_power, r_turn_min
 from controlConstants import KP_POSITION, KI_POSITION, KP_STEERING, KI_STEERING
 import umath
@@ -76,6 +96,9 @@ run_watch = StopWatch()
 # comando PID las cambia entre ensayos.
 GAINS = {'kp_pos': KP_POSITION, 'ki_pos': KI_POSITION,
          'kp_st': KP_STEERING,  'ki_st': KI_STEERING}
+
+# Algoritmo de planificacion. 'RS' o 'DUBINS'. El comando ALG lo cambia.
+ALGORITHM = 'RS'
 
 
 # ----------------------------------------------------------------------------
@@ -138,6 +161,30 @@ def set_gains(arg):
     return True
 
 
+def set_algorithm(arg):
+    """'RS' o 'DUBINS' -> actualiza ALGORITHM. Devuelve True si ok."""
+    global ALGORITHM
+    arg = arg.strip().upper()
+    if arg not in ('RS', 'DUBINS'):
+        return False
+    ALGORITHM = arg
+    return True
+
+
+def plan_leg(start_pose, end_pose):
+    """Planifica un tramo segun el algoritmo seleccionado. Devuelve la lista
+    [{distance, steering, gear}, ...] con distancias en cm, o None si no hay
+    solucion."""
+    if ALGORITHM == 'DUBINS':
+        return get_best_dubins(start_pose, end_pose, r_turn_min)
+    # Reeds-Shepp (default)
+    sp, ep = normalize_start_and_end_point(start_pose, end_pose, r_turn_min)
+    best = get_best_path(sp, ep)
+    if best is None:
+        return None
+    return denormalize_distance_in_path(best, r_turn_min)
+
+
 # ----------------------------------------------------------------------------
 # Hardware
 # ----------------------------------------------------------------------------
@@ -160,7 +207,11 @@ def setup():
 def stream_plan(path, leg_start, step=8.0, batch=14):
     """Integra la trayectoria planificada de un tramo y la manda al
     dashboard en lineas PLAN cortas. No acumula la lista completa de
-    puntos: el pico de memoria es de solo "batch" puntos."""
+    puntos: el pico de memoria es de solo "batch" puntos.
+
+    Ojo: el rumbo se acumula con signo invertido (thl -=) para pasar de la
+    convencion 'compass' del planner a la matematica estandar usada por
+    cos/sin. Esto solo afecta la VISUALIZACION."""
     X0 = leg_start[0]
     Y0 = leg_start[1]
     TH0 = umath.radians(leg_start[2])
@@ -182,7 +233,7 @@ def stream_plan(path, leg_start, step=8.0, batch=14):
             if distance - travelled < step:
                 ds = distance - travelled
             travelled += ds
-            thl += gear * steer_dir * ds / r_turn_min
+            thl -= gear * steer_dir * ds / r_turn_min
             xl += gear * ds * umath.cos(thl)
             yl += gear * ds * umath.sin(thl)
             gx = X0 + xl * cos0 - yl * sin0
@@ -271,10 +322,12 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
             audi.steer(steering_command)
             audi.drive_power(position_command)
 
-            # Integracion de la posicion (x, y) global del auto
+            # Integracion de la posicion (x, y) global del auto. El rumbo del
+            # IMU se invierte de signo SOLO para esta integracion (convencion
+            # matematica estandar), no afecta el lazo de control.
             ds = position_vehicle - position_vehicle_prev
             position_vehicle_prev = position_vehicle
-            heading_rad = umath.radians(steering_vehicle)
+            heading_rad = -umath.radians(steering_vehicle)
             x_local += ds * umath.cos(heading_rad)
             y_local += ds * umath.sin(heading_rad)
 
@@ -309,18 +362,16 @@ def run_trajectory(PATH):
     run_watch.reset()
     hub.light.on(Color.ORANGE)
 
-    # Calcular la trayectoria optima de Reeds-Shepp de cada tramo
+    # Calcular la trayectoria optima de cada tramo segun el algoritmo elegido
     legs = []
     seg_total = 0
     for i in range(len(PATH) - 1):
-        start_point, end_point = normalize_start_and_end_point(PATH[i], PATH[i + 1], r_turn_min)
-        best = get_best_path(start_point, end_point)
-        if best is None:
-            print("ERR sin solucion Reeds-Shepp en el tramo {}".format(i + 1))
+        leg = plan_leg(PATH[i], PATH[i + 1])
+        if leg is None:
+            print("ERR sin solucion {} en el tramo {}".format(ALGORITHM, i + 1))
             print("END error")
             hub.light.on(Color.RED)
             return
-        leg = denormalize_distance_in_path(best, r_turn_min)
         legs.append(leg)
         seg_total += len(leg)
         gc.collect()
@@ -352,7 +403,7 @@ def main():
     setup()
     PATH = None
     print("RDY")
-    print("VER 7 rs-stream")
+    print("VER 9 rs-dubins-fix-xy")
 
     while True:
         line = read_command()
@@ -378,11 +429,17 @@ def main():
             else:
                 print("ERR PID invalido (4 numeros)")
 
+        elif line.startswith("ALG "):
+            if set_algorithm(line[4:]):
+                print("ACK ALG {}".format(ALGORITHM))
+            else:
+                print("ERR ALG invalido (RS o DUBINS)")
+
         elif line == "START":
             if not PATH:
                 print("ERR sin PATH cargado")
             else:
-                print("ACK START")
+                print("ACK START {}".format(ALGORITHM))
                 run_trajectory(PATH)
                 print("RDY")
 
