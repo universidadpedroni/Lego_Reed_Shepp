@@ -33,7 +33,7 @@
 #   ERR <texto>                    comando rechazado
 #   SEG i n                        arranca el tramo i de n
 #   PLAN x,y;x,y;...               trayectoria planificada de un tramo (cm)
-#   T t,pr,pv,pe,pc,sr,sv,se,sc,x,y   muestra de telemetria (ver mas abajo)
+#   T t,pr,pv,pe,pc,sr,sv,se,sc,x,y,pP,pI,sP,sI   telemetria (ver mas abajo)
 #   END ok|stop|stall|timeout|error   fin del ensayo
 #
 # Campos de la telemetria T:
@@ -41,6 +41,9 @@
 #   pe error posicion [cm]   pc comando traccion           sr rumbo ref [grados]
 #   sv rumbo real [grados]   se error rumbo [grados]       sc comando direccion
 #   x  posicion X global [cm]   y posicion Y global [cm]
+#   pP/pI accion traccion P e I    sP/sI accion direccion P e I (con gear)
+#   pc=clamp(pP+pI), sc=gear*clamp(sP+sI). Si pP+pI o sP+sI exceden el
+#   limite, pc/sc saturan pero pP,pI,sP,sI siguen: asi se ve el windup.
 # =============================================================================
 #
 # =============================================================================
@@ -338,11 +341,12 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
             if elapsed_time % 100 == 0:
                 x_global = X0 + x_local * cos0 - y_local * sin0
                 y_global = Y0 + x_local * sin0 + y_local * cos0
-                print("T {:.2f},{:.2f},{:.2f},{:.2f},{},{:.2f},{:.2f},{:.2f},{},{:.1f},{:.1f}".format(
+                print("T {:.2f},{:.2f},{:.2f},{:.2f},{},{:.2f},{:.2f},{:.2f},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}".format(
                     run_watch.time() / 1000.0,
                     position_reference, position_vehicle, position_error, position_command,
                     umath.degrees(steering_reference), steering_vehicle, steering_error, steering_command,
-                    x_global, y_global))
+                    x_global, y_global,
+                    position_P, position_I, gear * steering_P, gear * steering_I))
 
         # Watchdog de tiempo
         if (elapsed_time / 1000.0) >= elapsed_time_max:
@@ -403,7 +407,7 @@ def main():
     setup()
     PATH = None
     print("RDY")
-    print("VER 9 rs-dubins-fix-xy")
+    print("VER 10 rs-dubins-pi-split")
 
     while True:
         line = read_command()

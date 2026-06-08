@@ -23,12 +23,14 @@
         padding:14px;}
   .row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:14px;}
   .row > .card{flex:1;min-width:220px;}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .grid{display:grid;grid-template-columns:1.5fr 1fr 0.8fr;gap:14px;}
   .grid .tall{grid-column:1;grid-row:1 / span 2;display:flex;flex-direction:column;}
+  .grid .ctrl{grid-column:3;grid-row:1 / span 2;}
   .grid .tall .chart-box{flex:1;height:auto;min-height:340px;}
   @media(max-width:880px){
     .grid{grid-template-columns:1fr;}
     .grid .tall{grid-column:auto;grid-row:auto;}
+    .grid .ctrl{grid-column:auto;grid-row:auto;}
   }
   button{font-family:inherit;font-size:13px;font-weight:600;border:none;
          border-radius:7px;padding:9px 14px;cursor:pointer;color:#fff;}
@@ -72,6 +74,34 @@
   .pi-part + .pi-part{border-left:1px solid var(--line);padding-left:14px;}
   .pi-part h3{font-size:11px;font-weight:600;color:var(--txt2);
               text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;}
+  /* Panel de acciones de control */
+  .ctrl-grp{margin-bottom:16px;}
+  .ctrl-grp:last-child{margin-bottom:0;}
+  .ctrl-grp > .lbl{display:flex;justify-content:space-between;font-size:11px;
+                   color:var(--txt2);text-transform:uppercase;letter-spacing:.5px;
+                   margin-bottom:7px;}
+  .ctrl-grp > .lbl b{color:var(--txt);font-variant-numeric:tabular-nums;}
+  .hbar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;}
+  .hbar-row .tag{width:14px;font-size:12px;color:var(--txt2);}
+  .hbar-row .tag.sum{color:var(--txt);font-weight:600;}
+  .hbar{position:relative;flex:1;border:1px solid var(--line);border-radius:3px;
+        overflow:hidden;background:var(--panel2);}
+  .hbar .mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--txt2);opacity:.45;}
+  .hbar .fill{position:absolute;top:0;bottom:0;left:50%;width:0%;}
+  .hbar-row .val{width:42px;text-align:right;font-size:11px;color:var(--txt);
+                 font-variant-numeric:tabular-nums;}
+  .vbars{display:flex;gap:16px;justify-content:center;align-items:stretch;min-height:400px;}
+  .vcol{display:flex;flex-direction:column;}
+  .vbar{position:relative;margin:0 auto;flex:1;border:1px solid var(--line);
+        border-radius:3px;overflow:hidden;background:var(--panel2);}
+  .vbar.sum{border:2px solid var(--txt2);}
+  .vbar .mid{position:absolute;left:0;right:0;top:50%;height:1px;background:var(--txt2);opacity:.45;}
+  .vbar .fill{position:absolute;left:0;right:0;bottom:50%;height:0%;}
+  .vcol .cap{text-align:center;margin-top:6px;font-size:12px;color:var(--txt2);}
+  .vcol .cap.sum{color:var(--txt);font-weight:600;}
+  .vcol .val{text-align:center;font-size:11px;color:var(--txt);font-variant-numeric:tabular-nums;}
+  .scale-v{display:flex;flex-direction:column;justify-content:space-between;
+           font-size:10px;color:var(--txt2);padding:2px 0;}
 </style>
 </head>
 <body>
@@ -108,14 +138,14 @@
     <div class="pi-split">
       <div class="pi-part">
         <h3>PI posici&oacute;n</h3>
-        <div class="field"><label>Kp</label><input id="kpPos" type="number" step="0.1" value="20"></div>
-        <div class="field"><label>Ki</label><input id="kiPos" type="number" step="0.01" value="0.05"></div>
+        <div class="field"><label>Kp</label><input id="kpPos" type="number" step="0.1" value="50"></div>
+        <div class="field"><label>Ki</label><input id="kiPos" type="number" step="0.01" value="0.01"></div>
         <button id="sendPiPosBtn" class="btn-ghost" disabled style="width:100%;">Enviar</button>
       </div>
       <div class="pi-part">
         <h3>PI rumbo</h3>
-        <div class="field"><label>Kp</label><input id="kpSt" type="number" step="0.1" value="100"></div>
-        <div class="field"><label>Ki</label><input id="kiSt" type="number" step="0.01" value="0.1"></div>
+        <div class="field"><label>Kp</label><input id="kpSt" type="number" step="0.1" value="50"></div>
+        <div class="field"><label>Ki</label><input id="kiSt" type="number" step="0.01" value="0.01"></div>
         <button id="sendPiStBtn" class="btn-ghost" disabled style="width:100%;">Enviar</button>
       </div>
     </div>
@@ -166,6 +196,36 @@
   <div class="card">
     <h2>Rumbo &mdash; referencia vs real</h2>
     <div class="chart-box"><canvas id="chartHead"></canvas></div>
+  </div>
+
+  <div class="card ctrl">
+    <h2>Acciones de control</h2>
+
+    <div class="ctrl-grp">
+      <div class="lbl"><span>Direcci&oacute;n &middot; L / R</span><b id="cDirSum">0%</b></div>
+      <div class="hbar-row"><span class="tag">P</span>
+        <div class="hbar" style="height:14px;"><div class="mid"></div><div class="fill" id="cDirP"></div></div>
+        <span class="val" id="cDirPv">0%</span></div>
+      <div class="hbar-row"><span class="tag">I</span>
+        <div class="hbar" style="height:14px;"><div class="mid"></div><div class="fill" id="cDirI"></div></div>
+        <span class="val" id="cDirIv">0%</span></div>
+      <div class="hbar-row"><span class="tag sum">&Sigma;</span>
+        <div class="hbar" style="height:14px;"><div class="mid"></div><div class="fill" id="cDirS"></div></div>
+        <span class="val" id="cDirSv">0%</span></div>
+    </div>
+
+    <div class="ctrl-grp">
+      <div class="lbl"><span>Velocidad &middot; adel / atr&aacute;s</span><b id="cVelSum">0%</b></div>
+      <div class="vbars">
+        <div class="vcol"><div class="vbar" style="width:28px;"><div class="mid"></div><div class="fill" id="cVelP"></div></div>
+          <div class="cap">P</div><div class="val" id="cVelPv">0%</div></div>
+        <div class="vcol"><div class="vbar" style="width:28px;"><div class="mid"></div><div class="fill" id="cVelI"></div></div>
+          <div class="cap">I</div><div class="val" id="cVelIv">0%</div></div>
+        <div class="vcol"><div class="vbar sum" style="width:28px;"><div class="mid"></div><div class="fill" id="cVelS"></div></div>
+          <div class="cap sum">&Sigma;</div><div class="val" id="cVelSv">0%</div></div>
+        <div class="scale-v"><span>+100</span><span>0</span><span>-100</span></div>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -360,13 +420,20 @@ function initCharts(){
   chartErrHead = mkErrorChart("chartErrHead","error rumbo [°]");
 }
 function clearCharts(){
-  for(const c of [chartPos,chartHead,chartErrPos,chartErrHead])
-    c.data.datasets.forEach(d=>d.data=[]);
-  // En chartXY no tocamos el dataset de waypoints, solo planificada/real.
-  chartXY.data.datasets[0].data = [];
-  chartXY.data.datasets[1].data = [];
-  chartPos.update("none"); chartHead.update("none"); chartXY.update("none");
-  chartErrPos.update("none"); chartErrHead.update("none");
+  // Vaciar los arrays IN-PLACE (data.length=0). Reasignar d.data=[] mas un
+  // update("none") puede dejar el trazo viejo dibujado en Chart.js; mutar el
+  // mismo array y hacer update() completo lo borra siempre. En chartXY se
+  // conserva el dataset de Waypoints.
+  const wipe = (ch) => ch.data.datasets.forEach(d => { if(d.label !== 'Waypoints') d.data.length = 0; });
+  [chartPos, chartHead, chartErrPos, chartErrHead].forEach(wipe);
+  wipe(chartXY);
+  // Soltar el zoom fijado del ensayo anterior para que se recalcule de cero.
+  chartXY.options.scales.x.min = undefined; chartXY.options.scales.x.max = undefined;
+  chartXY.options.scales.y.min = undefined; chartXY.options.scales.y.max = undefined;
+  squareXY();
+  chartPos.update(); chartHead.update(); chartXY.update();
+  chartErrPos.update(); chartErrHead.update();
+  resetControls();
 }
 function refreshWaypoints(){
   if(!chartXY) return;
@@ -485,6 +552,9 @@ function addTelemetry(csv){
   const f=csv.split(",").map(Number);
   if(f.length<11) return;
   const t=f[0], pr=f[1], pv=f[2], pe=f[3], sr=f[5], sv=f[6], se=f[7], x=f[9], y=f[10];
+  // Acciones de control: Direccion(steering)=sP f[13],sI f[14],sc f[8];
+  // Velocidad(traccion)=pP f[11],pI f[12],pc f[4].
+  if(f.length>=15) updateControls(f[13],f[14],f[8], f[11],f[12],f[4]);
   chartPos.data.datasets[0].data.push({x:t,y:pr});
   chartPos.data.datasets[1].data.push({x:t,y:pv});
   chartHead.data.datasets[0].data.push({x:t,y:sr});
@@ -545,6 +615,38 @@ function onRunEnd(status){
 function rms(a){ let s=0; for(const v of a) s+=v*v; return Math.sqrt(s/a.length); }
 function amax(a){ let m=0; for(const v of a) m=Math.max(m,Math.abs(v)); return m; }
 
+// ---- Barras de acciones de control (P / I / Sigma) ------------------------
+const CTRL_P="#38bdf8", CTRL_I="#f59e0b";   // azul (P) y ambar (I)
+function ctrlMagColor(pct){
+  const m=Math.min(Math.abs(pct)/100,1);
+  if(m>=0.95) return "#ef4444";             // rojo: control saturado
+  const r=Math.round(159+(15-159)*m), g=Math.round(225+(110-225)*m), b=Math.round(203+(86-203)*m);
+  return "rgb("+r+","+g+","+b+")";
+}
+function setBar(fillId,valId,pct,orient,color){
+  const f=$(fillId); pct=Math.round(pct); const a=Math.max(-100,Math.min(100,pct));
+  if(orient==="h"){
+    if(a>=0){ f.style.left="50%"; f.style.width=(a/2)+"%"; }
+    else    { f.style.left=(50+a/2)+"%"; f.style.width=(-a/2)+"%"; }
+  } else {
+    if(a>=0){ f.style.bottom="50%"; f.style.top="auto"; f.style.height=(a/2)+"%"; }
+    else    { f.style.top="50%"; f.style.bottom="auto"; f.style.height=(-a/2)+"%"; }
+  }
+  f.style.background = color || ctrlMagColor(pct);
+  $(valId).textContent = pct+"%";
+}
+function updateControls(dirP,dirI,dirS,velP,velI,velS){
+  setBar("cDirP","cDirPv",dirP,"h",CTRL_P);
+  setBar("cDirI","cDirIv",dirI,"h",CTRL_I);
+  setBar("cDirS","cDirSv",dirS,"h",null);
+  $("cDirSum").textContent=Math.round(dirS)+"%";
+  setBar("cVelP","cVelPv",velP,"v",CTRL_P);
+  setBar("cVelI","cVelIv",velI,"v",CTRL_I);
+  setBar("cVelS","cVelSv",velS,"v",null);
+  $("cVelSum").textContent=Math.round(velS)+"%";
+}
+function resetControls(){ updateControls(0,0,0,0,0,0); }
+
 // ---- Arranque -------------------------------------------------------------
 window.addEventListener("load",()=>{
   initCharts();
@@ -561,6 +663,7 @@ window.addEventListener("load",()=>{
   $("wpBody").addEventListener("input", refreshWaypoints);
   refreshButtons();
   refreshWaypoints();
+  resetControls();
   log("Dashboard listo. Conecta el hub para empezar.");
 });
 </script>
