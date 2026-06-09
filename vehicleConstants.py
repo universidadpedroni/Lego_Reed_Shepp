@@ -7,5 +7,4 @@ r_turn_min = 80.0        # Hacemos el radio de giro mínimo un poco más grande 
 
 max_drive_power = 100
 max_angle_power = 100
-max_angle = 127.0    
     

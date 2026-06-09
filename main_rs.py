@@ -83,7 +83,6 @@ from usys import stdin
 from uselect import poll
 
 
-CM_TO_ANGLE = 22       # 3600 grados / 162 cm
 ANGLE_TO_CM = 0.045
 
 
@@ -191,6 +190,13 @@ def plan_leg(start_pose, end_pose):
 # ----------------------------------------------------------------------------
 # Hardware
 # ----------------------------------------------------------------------------
+def stop_car():
+    """Frena traccion y centra la direccion. Se llama desde STOP, stall,
+    timeout y fin de tramo."""
+    audi.drive_power(0)
+    audi.steer(0)
+
+
 def resetAllSensors():
     audi.steer(0)
     hub.imu.reset_heading(0)
@@ -207,6 +213,19 @@ def setup():
 # Geometria: integrar la trayectoria planificada de un tramo a coordenadas
 # globales (x, y) para dibujarla en el dashboard.
 # ----------------------------------------------------------------------------
+def make_frame(leg_start):
+    """Devuelve to_global(xl, yl): pasa coordenadas locales del tramo
+    (origen en leg_start, eje X segun el rumbo inicial) al marco global."""
+    th0 = umath.radians(leg_start[2])
+    c = umath.cos(th0)
+    s = umath.sin(th0)
+    x0 = leg_start[0]
+    y0 = leg_start[1]
+    def to_global(xl, yl):
+        return (x0 + xl * c - yl * s, y0 + xl * s + yl * c)
+    return to_global
+
+
 def stream_plan(path, leg_start, step=8.0, batch=14):
     """Integra la trayectoria planificada de un tramo y la manda al
     dashboard en lineas PLAN cortas. No acumula la lista completa de
@@ -215,16 +234,12 @@ def stream_plan(path, leg_start, step=8.0, batch=14):
     Ojo: el rumbo se acumula con signo invertido (thl -=) para pasar de la
     convencion 'compass' del planner a la matematica estandar usada por
     cos/sin. Esto solo afecta la VISUALIZACION."""
-    X0 = leg_start[0]
-    Y0 = leg_start[1]
-    TH0 = umath.radians(leg_start[2])
-    cos0 = umath.cos(TH0)
-    sin0 = umath.sin(TH0)
+    to_global = make_frame(leg_start)
 
     xl = 0.0       # posicion local dentro del tramo
     yl = 0.0
     thl = 0.0      # rumbo local (arranca en 0)
-    parts = ["{:.1f},{:.1f}".format(X0, Y0)]
+    parts = ["{:.1f},{:.1f}".format(leg_start[0], leg_start[1])]
 
     for seg in path:
         distance = seg['distance']
@@ -239,8 +254,7 @@ def stream_plan(path, leg_start, step=8.0, batch=14):
             thl -= gear * steer_dir * ds / r_turn_min
             xl += gear * ds * umath.cos(thl)
             yl += gear * ds * umath.sin(thl)
-            gx = X0 + xl * cos0 - yl * sin0
-            gy = Y0 + xl * sin0 + yl * cos0
+            gx, gy = to_global(xl, yl)
             parts.append("{:.1f},{:.1f}".format(gx, gy))
             if len(parts) >= batch:
                 print("PLAN " + ";".join(parts))
@@ -252,6 +266,23 @@ def stream_plan(path, leg_start, step=8.0, batch=14):
 # ----------------------------------------------------------------------------
 # Control del vehiculo a lo largo de un tramo (leg)
 # ----------------------------------------------------------------------------
+def saturate(value, limit):
+    """Recorta value a [-limit, limit] y lo devuelve entero (los motores
+    toman potencia entera)."""
+    return int(min(max(value, -limit), limit))
+
+
+def send_telemetry(t, pos_ref, pos_veh, pos_err, pos_cmd,
+                   st_ref_deg, st_veh, st_err, st_cmd,
+                   x, y, pP, pI, sP, sI):
+    """Imprime una linea T de telemetria al dashboard (formato y campos en
+    la cabecera del archivo)."""
+    print("T {:.2f},{:.2f},{:.2f},{:.2f},{},{:.2f},{:.2f},{:.2f},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}".format(
+        t, pos_ref, pos_veh, pos_err, pos_cmd,
+        st_ref_deg, st_veh, st_err, st_cmd,
+        x, y, pP, pI, sP, sI))
+
+
 def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
     """Maneja el auto por un tramo. Devuelve 'ok', 'stop', 'stall' o
     'timeout'."""
@@ -263,11 +294,7 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
     delta_s = h * v / 1000.0
 
     # Frame global del tramo, para reportar la posicion (x, y) del auto.
-    X0 = leg_start[0]
-    Y0 = leg_start[1]
-    TH0 = umath.radians(leg_start[2])
-    cos0 = umath.cos(TH0)
-    sin0 = umath.sin(TH0)
+    to_global = make_frame(leg_start)
     x_local = 0.0
     y_local = 0.0
 
@@ -289,14 +316,12 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
         while abs(position_vehicle) <= distance and (elapsed_time / 1000.0) < elapsed_time_max:
             # STOP de emergencia desde el dashboard
             if read_command() == "STOP":
-                audi.drive_power(0)
-                audi.steer(0)
+                stop_car()
                 return 'stop'
 
             # Motores bloqueados
             if rear.stalled() or front.stalled():
-                audi.drive_power(0)
-                audi.steer(0)
+                stop_car()
                 return 'stall'
 
             # Referencias: posicion y rumbo avanzan juntos y solo mientras la
@@ -313,14 +338,15 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
             position_error = position_reference - position_vehicle
             steering_error = umath.degrees(steering_reference) - steering_vehicle
 
-            # Acciones de control (PI)
+            # --- Accion de control de POSICION (traccion), PI ---
             position_P = GAINS['kp_pos'] * position_error
             position_I += GAINS['ki_pos'] * position_error
+            position_command = saturate(position_P + position_I, max_drive_power)
+
+            # --- Accion de control de DIRECCION (steering), PI ---
             steering_P = GAINS['kp_st'] * steering_error
             steering_I += GAINS['ki_st'] * steering_error
-
-            position_command = int(min(max(position_P + position_I, -max_drive_power), max_drive_power))
-            steering_command = gear * int(min(max(steering_P + steering_I, -max_angle_power), max_angle_power))
+            steering_command = gear * saturate(steering_P + steering_I, max_angle_power)
 
             audi.steer(steering_command)
             audi.drive_power(position_command)
@@ -339,23 +365,20 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
 
             # Telemetria al dashboard, cada 100 ms
             if elapsed_time % 100 == 0:
-                x_global = X0 + x_local * cos0 - y_local * sin0
-                y_global = Y0 + x_local * sin0 + y_local * cos0
-                print("T {:.2f},{:.2f},{:.2f},{:.2f},{},{:.2f},{:.2f},{:.2f},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}".format(
+                x_global, y_global = to_global(x_local, y_local)
+                send_telemetry(
                     run_watch.time() / 1000.0,
                     position_reference, position_vehicle, position_error, position_command,
                     umath.degrees(steering_reference), steering_vehicle, steering_error, steering_command,
                     x_global, y_global,
-                    position_P, position_I, gear * steering_P, gear * steering_I))
+                    position_P, position_I, gear * steering_P, gear * steering_I)
 
         # Watchdog de tiempo
         if (elapsed_time / 1000.0) >= elapsed_time_max:
-            audi.drive_power(0)
-            audi.steer(0)
+            stop_car()
             return 'timeout'
 
-    audi.drive_power(0)
-    audi.steer(0)
+    stop_car()
     return 'ok'
 
 
@@ -448,8 +471,7 @@ def main():
                 print("RDY")
 
         elif line == "STOP":
-            audi.drive_power(0)
-            audi.steer(0)
+            stop_car()
             print("ACK STOP")
 
         elif line == "PING":
