@@ -25,6 +25,8 @@
 #   ALG RS|DUBINS                   elige el planner (default RS)
 #   START                          calcula la trayectoria y arranca el ensayo
 #   STOP                           frena el auto de inmediato
+#   RESET                          pone los sensores (IMU + encoders) a 0
+#   BAT                            el hub responde con el estado de bateria
 #   PING                           el hub responde RDY (para sincronizar)
 #
 # El hub responde, una linea por mensaje:
@@ -35,6 +37,7 @@
 #   PLAN x,y;x,y;...               trayectoria planificada de un tramo (cm)
 #   T t,pr,pv,pe,pc,sr,sv,se,sc,x,y,pP,pI,sP,sI   telemetria (ver mas abajo)
 #   END ok|stop|stall|timeout|error   fin del ensayo
+#   BAT mv,ma                      bateria: tension [mV] y corriente [mA]
 #
 # Campos de la telemetria T:
 #   t  tiempo [s]            pr posicion referencia [cm]   pv posicion real [cm]
@@ -198,10 +201,23 @@ def stop_car():
 
 
 def resetAllSensors():
+    audi.drive_power(0)
     audi.steer(0)
     hub.imu.reset_heading(0)
     front.reset_angle(0)
     rear.reset_angle(0)
+
+
+def send_battery():
+    """Estado de la bateria al dashboard: 'BAT mv,ma'
+    mv = tension [mV], ma = corriente de descarga [mA]."""
+    try:
+        mv = hub.battery.voltage()
+        ma = hub.battery.current()
+    except:
+        mv = 0
+        ma = 0
+    print("BAT {},{}".format(mv, ma))
 
 
 def setup():
@@ -430,7 +446,8 @@ def main():
     setup()
     PATH = None
     print("RDY")
-    print("VER 10 rs-dubins-pi-split")
+    print("VER 11 rs-dubins-pi-split")
+    send_battery()
 
     while True:
         line = read_command()
@@ -468,11 +485,20 @@ def main():
             else:
                 print("ACK START {}".format(ALGORITHM))
                 run_trajectory(PATH)
+                send_battery()
                 print("RDY")
 
         elif line == "STOP":
             stop_car()
             print("ACK STOP")
+
+        elif line == "RESET":
+            resetAllSensors()
+            send_battery()
+            print("ACK RESET")
+
+        elif line == "BAT":
+            send_battery()
 
         elif line == "PING":
             print("RDY")

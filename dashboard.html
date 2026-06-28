@@ -161,10 +161,13 @@
     <button id="startBtn" class="btn-ok btn-big" disabled>&#9654; INICIAR ENSAYO</button>
     <div style="height:8px;"></div>
     <button id="stopBtn" class="btn-danger btn-big" disabled>&#9632; STOP</button>
+    <div style="height:8px;"></div>
+    <button id="resetBtn" class="btn-ghost btn-big" disabled>&#8635; Resetear sensores</button>
     <div style="margin-top:12px;">
       <div class="stat"><span>Estado</span><b id="stRun">Inactivo</b></div>
       <div class="stat"><span>Tramo</span><b id="stSeg">&ndash;</b></div>
       <div class="stat"><span>Tiempo</span><b id="stTime">0.0 s</b></div>
+      <div class="stat"><span>Bater&iacute;a</span><b id="stBat">&ndash;</b></div>
     </div>
   </div>
 
@@ -280,6 +283,7 @@ function refreshButtons(){
   $("sendPiStBtn").disabled  = !hubReady || running;
   $("startBtn").disabled    = !hubReady || running;
   $("stopBtn").disabled     = !connected || !running;
+  $("resetBtn").disabled    = !hubReady || running;
   $("connectBtn").textContent = connected ? "Desconectar" : "Conectar hub";
 }
 
@@ -516,7 +520,7 @@ async function sendStdin(text){
 }
 async function sendCommand(cmd){
   await sendStdin(cmd+"\n");
-  if(cmd!=="PING") log("> "+cmd,"tx");
+  if(cmd!=="PING" && cmd!=="BAT") log("> "+cmd,"tx");
 }
 const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
 
@@ -535,10 +539,11 @@ function onNotify(ev){
 function handleLine(line){
   if(line.startsWith("T ")){ addTelemetry(line.slice(2)); return; }
   if(line.startsWith("PLAN ")){ addPlan(line.slice(5)); log("Trayectoria planificada recibida."); return; }
+  if(line.startsWith("BAT ")){ updateBattery(line.slice(4)); return; }
   log(line);
   if(line==="RDY"){
     if(!hubReady){ hubReady=true; setConn("hub"); refreshButtons();
-      log("Hub listo para recibir comandos."); }
+      log("Hub listo para recibir comandos."); sendCommand("BAT"); }
   }
   else if(line.startsWith("SEG ")){
     const p=line.split(" "); $("stSeg").textContent=p[1]+" / "+p[2];
@@ -647,6 +652,19 @@ function updateControls(dirP,dirI,dirS,velP,velI,velS){
 }
 function resetControls(){ updateControls(0,0,0,0,0,0); }
 
+// ---- Bateria --------------------------------------------------------------
+// TechnicHub: 6 pilas AA. Lleno (alcalinas) ~9.0 V, bajo ~6.0 V.
+const BAT_FULL=9.0, BAT_EMPTY=6.0;
+function updateBattery(csv){
+  const f=csv.split(",").map(Number);
+  if(f.length<2) return;
+  const mv=f[0], ma=f[1], V=mv/1000;
+  const pct=Math.max(0,Math.min(100,Math.round((V-BAT_EMPTY)/(BAT_FULL-BAT_EMPTY)*100)));
+  const el=$("stBat");
+  el.textContent=V.toFixed(2)+" V \u00b7 "+ma+" mA \u00b7 ~"+pct+"%";
+  el.style.color = pct<=15 ? "var(--danger)" : (pct<=35 ? "var(--ref)" : "var(--ok)");
+}
+
 // ---- Arranque -------------------------------------------------------------
 window.addEventListener("load",()=>{
   initCharts();
@@ -659,6 +677,8 @@ window.addEventListener("load",()=>{
   $("sendPiStBtn").onclick =()=>sendCommand("PID "+getPidString());
   $("startBtn").onclick=onStart;
   $("stopBtn").onclick =onStop;
+  $("resetBtn").onclick=()=>sendCommand("RESET");
+  setInterval(()=>{ if(connected && hubReady && !running) sendCommand("BAT"); }, 5000);
   // Refresca los marcadores de waypoints cada vez que se edita un input.
   $("wpBody").addEventListener("input", refreshWaypoints);
   refreshButtons();
