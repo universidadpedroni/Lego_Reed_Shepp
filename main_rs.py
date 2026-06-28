@@ -88,6 +88,12 @@ from uselect import poll
 
 ANGLE_TO_CM = 0.045
 
+# Reeds-Shepp y Dubins generan segmentos de transicion de distancia casi nula
+# (los giros 't' y 'v' de las curvas CSC suelen dar 0). Si esos segmentos
+# llegan al lazo de control, 'position_reference' no avanza (distance ~ 0) y el
+# auto queda clavado con accion de traccion 0 hasta el watchdog. Los salteamos.
+MIN_SEG_DISTANCE = 1.0   # [cm]
+
 
 hub = TechnicHub()
 steering = Motor(Port.D, Direction.CLOCKWISE)
@@ -217,7 +223,7 @@ def send_battery():
     except:
         mv = 0
         ma = 0
-    print("BAT {},{}".format(mv, ma))
+    print("BAT {}v,{}mA".format(mv, ma))
 
 
 def setup():
@@ -415,6 +421,7 @@ def run_trajectory(PATH):
             print("END error")
             hub.light.on(Color.RED)
             return
+        leg = [seg for seg in leg if seg['distance'] >= MIN_SEG_DISTANCE]
         legs.append(leg)
         seg_total += len(leg)
         gc.collect()
