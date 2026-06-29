@@ -116,7 +116,6 @@
 
 <header>
   <h1>&#128663; Dashboard Auto LEGO &mdash; Reeds-Shepp</h1>
-  <button id="themeBtn" class="btn-ghost">Modo claro</button>
 </header>
 
 <!-- ============ CONTROLES ============ -->
@@ -159,7 +158,7 @@
       </div>
     </div>
     <div class="hint">Cada &laquo;Enviar&raquo; manda el PI completo (posici&oacute;n + rumbo).</div>
-    <div class="field" style="margin-top:12px;"><label>Velocidad [cm/s]</label><input id="vel" type="number" step="1" value="19"></div>
+    <div class="field" style="margin-top:12px;"><label>Velocidad [cm/s]</label><input id="vel" type="number" step="1" value="40"></div>
     <button id="sendVelBtn" class="btn-ghost" disabled style="width:100%;">Enviar velocidad</button>
   </div>
 
@@ -172,8 +171,10 @@
     <button id="startBtn" class="btn-ok btn-big" disabled>&#9654; INICIAR ENSAYO</button>
     <div style="height:8px;"></div>
     <button id="stopBtn" class="btn-danger btn-big" disabled>&#9632; STOP</button>
-    <div style="height:8px;"></div>
-    <button id="resetBtn" class="btn-ghost btn-big" disabled>&#8635; Resetear sensores</button>
+    <div class="btn-row" style="margin-top:8px;">
+      <button id="resetBtn" class="btn-ghost" disabled style="flex:1;">&#8635; Resetear sensores</button>
+      <button id="themeBtn" class="btn-ghost" style="flex:1;">Modo claro</button>
+    </div>
     <div style="margin-top:12px;">
       <div class="stat"><span>Estado</span><b id="stRun">Inactivo</b></div>
       <div class="stat"><span>Tramo</span><b id="stSeg">&ndash;</b></div>
