@@ -21,7 +21,8 @@
 # =============================================================================
 # El dashboard manda comandos, uno por linea terminada en \n:
 #   PATH x,y,h;x,y,h;...            waypoints (x,y en cm, h en grados)
-#   PID kp_pos,ki_pos,kp_st,ki_st   ganancias de los PID
+#   PI  kp_pos,ki_pos,kp_st,ki_st   ganancias de los PI
+#   VEL v                          velocidad lineal de referencia [cm/s]
 #   ALG RS|DUBINS                   elige el planner (default RS)
 #   START                          calcula la trayectoria y arranca el ensayo
 #   STOP                           frena el auto de inmediato
@@ -103,13 +104,22 @@ audi = Car(steering, [front, rear])
 
 run_watch = StopWatch()
 
-# Ganancias de los PID. Arrancan con los valores de controlConstants.py; el
-# comando PID las cambia entre ensayos.
+# Ganancias de los PI. Arrancan con los valores de controlConstants.py; el
+# comando PI las cambia entre ensayos.
 GAINS = {'kp_pos': KP_POSITION, 'ki_pos': KI_POSITION,
          'kp_st': KP_STEERING,  'ki_st': KI_STEERING}
 
+# Velocidad lineal de referencia [cm/s]. Arranca con vehicleConstants.py; el
+# comando VEL la cambia entre ensayos.
+VELOCITY = v
+
 # Algoritmo de planificacion. 'RS' o 'DUBINS'. El comando ALG lo cambia.
 ALGORITHM = 'RS'
+
+# Cache de la trayectoria calculada al recibir PATH (para graficarla antes del
+# ensayo y no recalcular en START). Se invalida al cambiar PATH o ALG.
+LEGS = None
+LEGS_TOTAL = 0
 
 
 # ----------------------------------------------------------------------------
@@ -172,13 +182,28 @@ def set_gains(arg):
     return True
 
 
+def set_velocity(arg):
+    """'<v>' en cm/s -> actualiza VELOCITY. Devuelve True si ok (numero > 0)."""
+    global VELOCITY
+    try:
+        val = float(arg)
+    except:
+        return False
+    if val <= 0:
+        return False
+    VELOCITY = val
+    return True
+
+
 def set_algorithm(arg):
-    """'RS' o 'DUBINS' -> actualiza ALGORITHM. Devuelve True si ok."""
-    global ALGORITHM
+    """'RS' o 'DUBINS' -> actualiza ALGORITHM. Devuelve True si ok.
+    Invalida la trayectoria cacheada (cambia el planner)."""
+    global ALGORITHM, LEGS
     arg = arg.strip().upper()
     if arg not in ('RS', 'DUBINS'):
         return False
     ALGORITHM = arg
+    LEGS = None
     return True
 
 
@@ -313,7 +338,7 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
     resetAllSensors()
 
     steering_reference = 0.0
-    delta_s = h * v / 1000.0
+    delta_s = h * VELOCITY / 1000.0
 
     # Frame global del tramo, para reportar la posicion (x, y) del auto.
     to_global = make_frame(leg_start)
@@ -405,31 +430,52 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
 
 
 # ----------------------------------------------------------------------------
-# Ejecucion de la trayectoria completa
+# Calculo de la trayectoria y envio al dashboard
 # ----------------------------------------------------------------------------
-def run_trajectory(PATH):
-    run_watch.reset()
-    hub.light.on(Color.ORANGE)
-
-    # Calcular la trayectoria optima de cada tramo segun el algoritmo elegido
+def build_legs(PATH):
+    """Calcula los legs (con filtro de segmentos nulos) de todo el PATH segun
+    el algoritmo elegido. Devuelve (legs, seg_total) o (None, 0) si algun
+    tramo no tiene solucion."""
     legs = []
     seg_total = 0
     for i in range(len(PATH) - 1):
         leg = plan_leg(PATH[i], PATH[i + 1])
         if leg is None:
-            print("ERR sin solucion {} en el tramo {}".format(ALGORITHM, i + 1))
-            print("END error")
-            hub.light.on(Color.RED)
-            return
+            return None, 0
         leg = [seg for seg in leg if seg['distance'] >= MIN_SEG_DISTANCE]
         legs.append(leg)
         seg_total += len(leg)
         gc.collect()
+    return legs, seg_total
 
-    # Mandar la trayectoria planificada al dashboard, tramo por tramo
+
+def send_plan(legs, PATH):
+    """Manda la trayectoria planificada de cada tramo al dashboard (PLAN)."""
     for i in range(len(legs)):
         gc.collect()
         stream_plan(legs[i], PATH[i])
+
+
+# ----------------------------------------------------------------------------
+# Ejecucion de la trayectoria completa
+# ----------------------------------------------------------------------------
+def run_trajectory(PATH):
+    global LEGS, LEGS_TOTAL
+    run_watch.reset()
+    hub.light.on(Color.ORANGE)
+
+    # Reusar la trayectoria calculada al recibir PATH; si no hay, calcularla.
+    if LEGS is None:
+        LEGS, LEGS_TOTAL = build_legs(PATH)
+        if LEGS is None:
+            print("ERR sin solucion {}".format(ALGORITHM))
+            print("END error")
+            hub.light.on(Color.RED)
+            return
+        # Recalculado aca (no hubo preview al recibir PATH): mandarlo ahora.
+        send_plan(LEGS, PATH)
+    legs = LEGS
+    seg_total = LEGS_TOTAL
 
     # Manejar tramo por tramo
     gc.collect()
@@ -450,10 +496,11 @@ def run_trajectory(PATH):
 # Bucle principal: escucha comandos del dashboard
 # ----------------------------------------------------------------------------
 def main():
+    global LEGS, LEGS_TOTAL
     setup()
     PATH = None
     print("RDY")
-    print("VER 11 rs-dubins-pi-split")
+    print("VER 12 rs-dubins-pi-split")
     send_battery()
 
     while True:
@@ -464,23 +511,33 @@ def main():
         if line == "":
             continue
 
-        print("DBG len={} <{}>".format(len(line), line))  # TEMPORAL: diagnostico PATH
-
         if line.startswith("PATH "):
             poses = parse_path(line[5:])
             if poses and len(poses) >= 2:
                 PATH = poses
-                print("ACK PATH {}".format(len(PATH)))
+                LEGS, LEGS_TOTAL = build_legs(PATH)
+                if LEGS is None:
+                    print("ERR sin solucion {}".format(ALGORITHM))
+                else:
+                    print("ACK PATH {}".format(len(PATH)))
+                    send_plan(LEGS, PATH)
             else:
                 PATH = None
+                LEGS = None
                 print("ERR PATH invalido (minimo 2 poses x,y,h)")
 
-        elif line.startswith("PID "):
-            if set_gains(line[4:]):
-                print("ACK PID {},{},{},{}".format(
+        elif line.startswith("PI "):
+            if set_gains(line[3:]):
+                print("ACK PI {},{},{},{}".format(
                     GAINS['kp_pos'], GAINS['ki_pos'], GAINS['kp_st'], GAINS['ki_st']))
             else:
-                print("ERR PID invalido (4 numeros)")
+                print("ERR PI invalido (4 numeros)")
+
+        elif line.startswith("VEL "):
+            if set_velocity(line[4:]):
+                print("ACK VEL {}".format(VELOCITY))
+            else:
+                print("ERR VEL invalido (1 numero > 0)")
 
         elif line.startswith("ALG "):
             if set_algorithm(line[4:]):

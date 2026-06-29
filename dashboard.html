@@ -11,6 +11,11 @@
     --txt:#e2e8f0; --txt2:#94a3b8; --accent:#38bdf8; --ref:#f59e0b;
     --real:#38bdf8; --ok:#22c55e; --danger:#ef4444; --plan:#64748b;
   }
+  body.light{
+    --bg:#f1f5f9; --panel:#ffffff; --panel2:#e9eef5; --line:#cbd5e1;
+    --txt:#0f172a; --txt2:#475569; --accent:#0284c7; --ref:#d97706;
+    --real:#0284c7; --ok:#16a34a; --danger:#dc2626; --plan:#64748b;
+  }
   *{box-sizing:border-box;margin:0;padding:0;}
   body{font-family:'Segoe UI',Roboto,system-ui,sans-serif;background:var(--bg);
        color:var(--txt);padding:16px;font-size:14px;}
@@ -58,10 +63,13 @@
   .stat:last-child{border-bottom:none;}
   .stat b{color:var(--accent);font-variant-numeric:tabular-nums;}
   .log{background:#0b1220;border:1px solid var(--line);border-radius:8px;
-       padding:8px;height:100px;overflow-y:auto;font-family:Consolas,monospace;
+       padding:8px;height:180px;overflow-y:auto;font-family:Consolas,monospace;
        font-size:11px;line-height:1.5;color:var(--txt2);}
   .log .tx{color:#7dd3fc;}
   .log .err{color:#fca5a5;}
+  body.light .log{background:#f8fafc;}
+  body.light .log .tx{color:#0369a1;}
+  body.light .log .err{color:#b91c1c;}
   .hint{font-size:11px;color:var(--txt2);margin-top:6px;}
   .field{margin-bottom:8px;}
   .field label{display:block;font-size:11px;color:var(--txt2);margin-bottom:3px;}
@@ -108,6 +116,7 @@
 
 <header>
   <h1>&#128663; Dashboard Auto LEGO &mdash; Reeds-Shepp</h1>
+  <button id="themeBtn" class="btn-ghost">Modo claro</button>
 </header>
 
 <!-- ============ CONTROLES ============ -->
@@ -150,6 +159,8 @@
       </div>
     </div>
     <div class="hint">Cada &laquo;Enviar&raquo; manda el PI completo (posici&oacute;n + rumbo).</div>
+    <div class="field" style="margin-top:12px;"><label>Velocidad [cm/s]</label><input id="vel" type="number" step="1" value="19"></div>
+    <button id="sendVelBtn" class="btn-ghost" disabled style="width:100%;">Enviar velocidad</button>
   </div>
 
   <div class="card">
@@ -281,6 +292,7 @@ function refreshButtons(){
   $("sendPathBtn").disabled = !hubReady || running;
   $("sendPiPosBtn").disabled = !hubReady || running;
   $("sendPiStBtn").disabled  = !hubReady || running;
+  $("sendVelBtn").disabled   = !hubReady || running;
   $("startBtn").disabled    = !hubReady || running;
   $("stopBtn").disabled     = !connected || !running;
   $("resetBtn").disabled    = !hubReady || running;
@@ -603,9 +615,11 @@ async function onStart(){
   try{
     await sendCommand("ALG "+$("algSel").value);
     await sleep(150);
+    await sendCommand("VEL "+Number($("vel").value));
+    await sleep(150);
     await sendCommand("PATH "+path);
     await sleep(150);
-    await sendCommand("PID "+getPidString());
+    await sendCommand("PI "+getPidString());
     await sleep(150);
     await sendCommand("START");
   }catch(e){ log("Error al iniciar: "+e.message,"err"); running=false; refreshButtons(); }
@@ -671,6 +685,35 @@ function updateBattery(csv){
   el.style.color = pct<=15 ? "var(--danger)" : (pct<=35 ? "var(--ref)" : "var(--ok)");
 }
 
+// ---- Tema claro / oscuro --------------------------------------------------
+// Las tarjetas usan variables CSS (body.light las redefine). Los graficos
+// tienen colores fijos, asi que al cambiar de tema reaplicamos los colores de
+// ejes/grilla/leyenda leyendo las variables CSS vigentes.
+function applyChartColors(){
+  const cs=getComputedStyle(document.body);
+  const tick=cs.getPropertyValue('--txt2').trim();
+  const grid=cs.getPropertyValue('--line').trim();
+  const txt =cs.getPropertyValue('--txt').trim();
+  [chartPos,chartHead,chartXY,chartErrPos,chartErrHead].forEach(ch=>{
+    if(!ch) return;
+    for(const ax of ['x','y']){
+      const s=ch.options.scales[ax];
+      if(s.title) s.title.color=tick;
+      if(s.ticks) s.ticks.color=tick;
+      if(s.grid)  s.grid.color=grid;
+    }
+    if(ch.options.plugins && ch.options.plugins.legend)
+      ch.options.plugins.legend.labels.color=txt;
+    ch.update("none");
+  });
+}
+function setTheme(light){
+  document.body.classList.toggle("light", light);
+  $("themeBtn").textContent = light ? "Modo oscuro" : "Modo claro";
+  try{ localStorage.setItem("auto_lego_theme", light?"light":"dark"); }catch(e){}
+  if(typeof chartPos!=="undefined" && chartPos) applyChartColors();
+}
+
 // ---- Arranque -------------------------------------------------------------
 window.addEventListener("load",()=>{
   initCharts();
@@ -678,17 +721,21 @@ window.addEventListener("load",()=>{
   addWaypoint(120,60,-90);
   $("connectBtn").onclick=toggleConnection;
   $("addWpBtn").onclick=()=>addWaypoint(0,0,0);
-  $("sendPathBtn").onclick=()=>sendCommand("PATH "+getPathString());
-  $("sendPiPosBtn").onclick=()=>sendCommand("PID "+getPidString());
-  $("sendPiStBtn").onclick =()=>sendCommand("PID "+getPidString());
+  $("sendPathBtn").onclick=()=>{ chartXY.data.datasets[0].data.length=0; chartXY.update("none"); sendCommand("PATH "+getPathString()); };
+  $("sendPiPosBtn").onclick=()=>sendCommand("PI "+getPidString());
+  $("sendPiStBtn").onclick =()=>sendCommand("PI "+getPidString());
+  $("sendVelBtn").onclick  =()=>sendCommand("VEL "+Number($("vel").value));
   $("startBtn").onclick=onStart;
   $("stopBtn").onclick =onStop;
   $("resetBtn").onclick=()=>sendCommand("RESET");
+  $("themeBtn").onclick=()=>setTheme(!document.body.classList.contains("light"));
   // Bateria sin poll: el firmware la empuja sola al arrancar y al terminar cada
   // ensayo. (El poll periodico chocaba con los envios y dejaba "Enviar PATH" sin
   // efecto: dos writeValueWithResponse a la vez = "GATT operation in progress".)
   // Refresca los marcadores de waypoints cada vez que se edita un input.
   $("wpBody").addEventListener("input", refreshWaypoints);
+  let _theme="dark"; try{ _theme=localStorage.getItem("auto_lego_theme")||"dark"; }catch(e){}
+  setTheme(_theme==="light");
   refreshButtons();
   refreshWaypoints();
   resetControls();
