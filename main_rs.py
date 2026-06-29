@@ -223,7 +223,7 @@ def send_battery():
     except:
         mv = 0
         ma = 0
-    print("BAT {}v,{}mA".format(mv, ma))
+    print("BAT {},{}".format(mv, ma))
 
 
 def setup():
@@ -463,6 +463,8 @@ def main():
             continue
         if line == "":
             continue
+
+        print("DBG len={} <{}>".format(len(line), line))  # TEMPORAL: diagnostico PATH
 
         if line.startswith("PATH "):
             poses = parse_path(line[5:])

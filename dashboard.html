@@ -510,7 +510,13 @@ function onDisconnected(){
 async function sendStdin(text){
   if(!gattChar) return;
   const payload=new TextEncoder().encode(text);
-  const chunk=Math.max(1,maxWrite-1);
+  // PB_CAPS reporta maxWrite=155, pero el MTU BLE real negociado puede ser el
+  // minimo (23 -> ~20 B utiles) y la caracteristica no soporta "long write":
+  // un comando de 22+ B (p.ej. PATH) se rechaza y "Enviar PATH" no hacia nada,
+  // mientras PID (20 B) entraba. Partimos en pedazos chicos que entran seguro;
+  // seguimos con writeValueWithResponse (entrega ordenada y confirmada) y el
+  // firmware reensambla en _inbuf hasta el \n.
+  const chunk=Math.min(Math.max(1,maxWrite-1), 18);
   for(let i=0;i<payload.length;i+=chunk){
     const slice=payload.slice(i,i+chunk);
     const packet=new Uint8Array(slice.length+1);
@@ -678,7 +684,9 @@ window.addEventListener("load",()=>{
   $("startBtn").onclick=onStart;
   $("stopBtn").onclick =onStop;
   $("resetBtn").onclick=()=>sendCommand("RESET");
-  setInterval(()=>{ if(connected && hubReady && !running) sendCommand("BAT"); }, 5000);
+  // Bateria sin poll: el firmware la empuja sola al arrancar y al terminar cada
+  // ensayo. (El poll periodico chocaba con los envios y dejaba "Enviar PATH" sin
+  // efecto: dos writeValueWithResponse a la vez = "GATT operation in progress".)
   // Refresca los marcadores de waypoints cada vez que se edita un input.
   $("wpBody").addEventListener("input", refreshWaypoints);
   refreshButtons();
