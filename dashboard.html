@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Dashboard Auto LEGO - Reeds-Shepp</title>
+<title>Dashboard Auto LEGO</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root{
@@ -115,7 +115,7 @@
 <body>
 
 <header>
-  <h1>&#128663; Dashboard Auto LEGO &mdash; Reeds-Shepp</h1>
+  <h1>&#128663; Dashboard Auto LEGO &mdash; <span id="dashVer"></span></h1>
 </header>
 
 <!-- ============ CONTROLES ============ -->
@@ -267,8 +267,11 @@ const PB_CAPS    = "c5f50003-8280-46da-89f4-6d8051e4aeef";  // capacidades
 const CMD_START_PROGRAM = 0x01;   // arrancar el programa del hub
 const CMD_WRITE_STDIN   = 0x06;   // escribir en stdin del programa
 const EVT_WRITE_STDOUT  = 0x01;   // evento: el hub escribio en stdout
+const DASH_VERSION = "v1.0";   // version del dashboard (subir a mano al cambiar)
 
 let device=null, gattChar=null, maxWrite=20, rxBuffer="";
+let lastRxMs=0;   // timestamp del ultimo dato recibido del hub; para esperar a
+                  // que termine de streamear PLAN antes de mandar START
 let connected=false, hubReady=false, running=false;
 let posErr=[], headErr=[];
 
@@ -520,7 +523,22 @@ function onDisconnected(){
 }
 
 // ---- BLE: enviar comandos -------------------------------------------------
-async function sendStdin(text){
+// Cola de escritura BLE: Web Bluetooth permite UNA sola operacion GATT a la
+// vez. Si dos writeValueWithResponse se solapan (p.ej. "Enviar PI" mientras
+// entra la lluvia de PLAN, o START pisando un envio anterior) el navegador
+// tira "GATT operation already in progress" -> "GATT Error Unknown". Serializamos
+// todos los envios encadenandolos: cada comando espera a que termine el previo.
+// La unidad de la cola es el COMANDO COMPLETO (todos sus chunks), asi los
+// pedazos de un PATH nunca se interleavean con otro comando.
+let _bleTail = Promise.resolve();
+function sendStdin(text){
+  const run = _bleTail.then(()=>_writeStdin(text), ()=>_writeStdin(text));
+  // El eslabon interno traga el error para no envenenar la cola; el que llama
+  // sigue viendo el rechazo de SU propio envio a traves de 'run'.
+  _bleTail = run.catch(()=>{});
+  return run;
+}
+async function _writeStdin(text){
   if(!gattChar) return;
   const payload=new TextEncoder().encode(text);
   // PB_CAPS reporta maxWrite=155, pero el MTU BLE real negociado puede ser el
@@ -542,11 +560,27 @@ async function sendCommand(cmd){
   if(cmd!=="PING" && cmd!=="BAT") log("> "+cmd,"tx");
 }
 const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+// Espera a que el link BLE quede en silencio 'quietMs' (o hasta 'timeoutMs').
+// PATH dispara en el hub una lluvia de notificaciones PLAN; escribir
+// (writeValueWithResponse) en medio de esa tormenta es lo que hace fallar el
+// Web Bluetooth del navegador con "GATT Error Unknown" (desde pybricksdev/VS Code
+// no pasa porque no usa Web Bluetooth). Esperamos a que termine antes de seguir.
+function waitQuiet(quietMs, timeoutMs){
+  return new Promise(resolve=>{
+    const t0=Date.now();
+    (function chk(){
+      const now=Date.now();
+      if(now-lastRxMs>=quietMs || now-t0>=timeoutMs) return resolve();
+      setTimeout(chk,50);
+    })();
+  });
+}
 
 // ---- BLE: recibir ---------------------------------------------------------
 function onNotify(ev){
   const data=new Uint8Array(ev.target.value.buffer);
   if(data[0]!==EVT_WRITE_STDOUT) return;
+  lastRxMs = Date.now();
   rxBuffer += new TextDecoder().decode(data.slice(1));
   let idx;
   while((idx=rxBuffer.indexOf("\n"))>=0){
@@ -619,9 +653,14 @@ async function onStart(){
     await sendCommand("VEL "+Number($("vel").value));
     await sleep(150);
     await sendCommand("PATH "+path);
-    await sleep(150);
+    // PATH dispara el streaming de PLAN. Dejamos que empiece (sleep) y esperamos
+    // a que el link quede en silencio antes de seguir: mandar PI/START encima de
+    // la tormenta de notificaciones es lo que fallaba con "GATT Error Unknown".
+    await sleep(200);
+    await waitQuiet(350, 5000);
     await sendCommand("PI "+getPidString());
-    await sleep(150);
+    await sleep(200);
+    await waitQuiet(350, 5000);
     await sendCommand("START");
   }catch(e){ log("Error al iniciar: "+e.message,"err"); running=false; refreshButtons(); }
 }
@@ -740,6 +779,8 @@ window.addEventListener("load",()=>{
   refreshButtons();
   refreshWaypoints();
   resetControls();
+  const _dv=$("dashVer"); if(_dv) _dv.textContent=DASH_VERSION;
+  document.title="Dashboard Auto LEGO "+DASH_VERSION;
   log("Dashboard listo. Conecta el hub para empezar.");
 });
 </script>
