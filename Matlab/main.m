@@ -5,9 +5,9 @@ fprintf("Fuente: https://github.com/nathanlct/reeds-shepp-curves/blob/master/ree
 %% Path
 PATH = [0 0 0;...
     120 60 90;...
-    %0 0 180;...
-    %120 -60 270;...
-    %0 0 0;
+    0 0 180;...
+    120 -60 270;...
+    0 0 0;
     ];
 
 %% Constantes
@@ -15,7 +15,7 @@ run car_constants.m
 %% Creación de la figura para los gráficos
 %figure('units','normalized','outerposition',[0 0 1 1]);
 figure;
-pause();
+
 hold on; grid on;
 xlabel('x [cm]'); ylabel('y [cm]');
 title(['Trayectorias de Reeds Shepp']);
@@ -54,12 +54,12 @@ for i = 1:size(PATH, 1) -1
         path(j).distance = path(j).distance * r_turn_min; % Escalar la distancia real
     end
 
-    % Resultados
-    for i = 1:length(path)
-        fprintf('Segmento %d:', i);
-        fprintf('  Distance: %.2f\t', path(i).distance);
-        fprintf('  Steering: %d\t', path(i).steering);
-        fprintf('  Gear: %d\n', path(i).gear);
+    % Resultados (uso s como indice para NO pisar la i del for externo)
+    for s = 1:length(path)
+        fprintf('Segmento %d:', s);
+        fprintf('  Distance: %.2f\t', path(s).distance);
+        fprintf('  Steering: %d\t', path(s).steering);
+        fprintf('  Gear: %d\n', path(s).gear);
     end
 
 
@@ -67,7 +67,7 @@ for i = 1:size(PATH, 1) -1
     % Obtener las coordenadas de 'end' en el sistema de coordenadas donde 'start' es (0,0,0)
 
     drawInitandEnd(start_point_original, end_point_original, i)
-    [x_next_start, y_next_start, theta_next_start] = drawReedsSheppTrajectory([x_next_start, y_next_start, theta_next_start], r_turn_min, path, 0.01, v);
+    [x_next_start, y_next_start, theta_next_start] = simulateReedsSheppTrajectory([x_next_start, y_next_start, theta_next_start], r_turn_min, path, 0.01, v);
 
 end
 

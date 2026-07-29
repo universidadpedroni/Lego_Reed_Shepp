@@ -4,7 +4,7 @@ run car_constants.m
 
 
 %% Creación de la figura para los gráficos
-% figure('units','normalized','outerposition',[0 0 1 1]); 
+% figure('units','normalized','outerposition',[0 0 1 1]);
 %     hold on; grid on;
 %     xlabel('x [cm]'); ylabel('y [cm]');
 %     title(['Trayectorias de Reeds Shepp']);
@@ -28,7 +28,6 @@ for i = 1:length(path)
 end
 
 %drawInitandEnd(start_point, end_point_original, 0)
-%drawReedsSheppTrajectory(start_point, r_turn_min, path, 0.01, v)
+%simulateReedsSheppTrajectory(start_point, r_turn_min, path, 0.01, v)
 
 disp('Terminado')
-
