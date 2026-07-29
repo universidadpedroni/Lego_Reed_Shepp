@@ -352,6 +352,19 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
         steer_dir = path[i]['steering']
         gear = path[i]['gear']
 
+        # Perfil de referencia del tramo (criterio Euler, paso fijo h):
+        # cuantizamos el tramo a N_seg ticks enteros del timer y recalculamos
+        # el paso de arco ds_seg = distance/N_seg para caer EXACTO en 'distance'
+        # en N_seg pasos. No usamos umath.ceil para no depender de el.
+        N_seg = int(distance / delta_s)
+        if N_seg * delta_s < distance:
+            N_seg += 1
+        if N_seg < 1:
+            N_seg = 1
+        ds_seg = distance / N_seg
+        ref_ticks = 0
+        head_ref_seg0 = steering_reference   # rumbo acumulado al entrar al tramo
+
         front.reset_angle(0)
         rear.reset_angle(0)
         position_reference = 0.0
@@ -371,11 +384,21 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
                 stop_car()
                 return 'stall'
 
-            # Referencias: posicion y rumbo avanzan juntos y solo mientras la
-            # referencia no llego al final del tramo.
-            if abs(position_reference) < abs(distance):
-                position_reference += gear * delta_s
-                steering_reference += gear * steer_dir * delta_s / r_turn_min
+            # Referencia por Euler con paso fijo y N entero de ticks. En vez de
+            # cortar por umbral (que overshoot-ea hasta delta_s y deja un residuo
+            # de rumbo que se arrastra al proximo segmento), avanzamos ds_seg
+            # exactos N_seg veces y en el ultimo tick clavamos la referencia en
+            # su valor final: cierra exacto y no acumula deriva de rumbo.
+            if ref_ticks < N_seg:
+                ref_ticks += 1
+                if ref_ticks < N_seg:
+                    position_reference += gear * ds_seg
+                    steering_reference += gear * steer_dir * ds_seg / r_turn_min
+                else:
+                    # ultimo tick del tramo: snap al valor exacto (mata la deriva
+                    # por redondeo en float, equivalente al q = qf del resumen).
+                    position_reference = gear * distance
+                    steering_reference = head_ref_seg0 + gear * steer_dir * distance / r_turn_min
 
             # Estado del vehiculo
             position_vehicle = 0.5 * (front.angle() + rear.angle()) * ANGLE_TO_CM
@@ -500,7 +523,7 @@ def main():
     setup()
     PATH = None
     print("RDY")
-    print("VER 12 rs-dubins-pi-split")
+    print("VER 13 rs-dubins-pi-eulerN")
     send_battery()
 
     while True:
