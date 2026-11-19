@@ -142,7 +142,30 @@
   </div>
 
   <div class="card">
-    <h2>Ganancias PI</h2>
+    <h2>Controlador de direcci&oacute;n</h2>
+    <div class="field" style="margin-bottom:10px;">
+      <select id="ctrlSel" style="font-family:inherit;font-size:13px;background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:6px;padding:6px 8px;width:100%;">
+        <option value="PI">PI (rumbo) &mdash; el de siempre</option>
+        <option value="SMC">Sliding mode (SMC)</option>
+      </select>
+    </div>
+    <div id="smcBox" style="display:none;margin-bottom:12px;">
+      <div class="pi-split">
+        <div class="pi-part">
+          <div class="field"><label>&lambda; [1/cm]</label><input id="smcLam" type="number" step="0.005" value="0.035"></div>
+          <div class="field"><label>&eta; [1/cm]</label><input id="smcEta" type="number" step="0.001" value="0.008"></div>
+          <div class="field"><label>&phi; [rad]</label><input id="smcPhi" type="number" step="0.01" value="0.05"></div>
+        </div>
+        <div class="pi-part">
+          <div class="field"><label>k<sub>i</sub></label><input id="smcKi" type="number" step="0.0005" value="0"></div>
+          <div class="field"><label>T_lead [s]</label><input id="smcTlead" type="number" step="0.05" value="0.2"></div>
+          <div class="field"><label>&psi;<sub>max</sub> efectivo [&deg;]</label><input id="smcPsi" type="number" step="0.5" value="20"></div>
+        </div>
+      </div>
+      <button id="sendSmcBtn" class="btn-ghost" disabled style="width:100%;margin-top:6px;">Enviar SMC</button>
+      <div class="hint">Con SMC el PI de rumbo no se usa (el de posici&oacute;n s&iacute;). Barras de direcci&oacute;n: Eq = control equivalente, Sw = t&eacute;rmino conmutado. &psi;<sub>max</sub> se calibra midiendo el radio real a 100%.</div>
+    </div>
+    <div class="lbl" style="font-size:12px;margin:2px 0 6px;color:var(--txt2);">Ganancias PI</div>
     <div class="pi-split">
       <div class="pi-part">
         <h3>PI posici&oacute;n</h3>
@@ -150,7 +173,7 @@
         <div class="field"><label>Ki</label><input id="kiPos" type="number" step="0.01" value="0.01"></div>
         <button id="sendPiPosBtn" class="btn-ghost" disabled style="width:100%;">Enviar</button>
       </div>
-      <div class="pi-part">
+      <div class="pi-part" id="piStPart">
         <h3>PI rumbo</h3>
         <div class="field"><label>Kp</label><input id="kpSt" type="number" step="0.1" value="50"></div>
         <div class="field"><label>Ki</label><input id="kiSt" type="number" step="0.01" value="0.01"></div>
@@ -158,7 +181,7 @@
       </div>
     </div>
     <div class="hint">Cada &laquo;Enviar&raquo; manda el PI completo (posici&oacute;n + rumbo).</div>
-    <div class="field" style="margin-top:12px;"><label>Velocidad [cm/s]</label><input id="vel" type="number" step="1" value="40"></div>
+    <div class="field" style="margin-top:12px;"><label>Velocidad [cm/s]</label><input id="vel" type="number" step="1" value="17"></div>
     <button id="sendVelBtn" class="btn-ghost" disabled style="width:100%;">Enviar velocidad</button>
   </div>
 
@@ -189,6 +212,12 @@
     <div class="stat"><span>Error rumbo (en vivo)</span><b id="mHeadLive">&ndash;</b></div>
     <div class="stat"><span>RMS / m&aacute;x posici&oacute;n</span><b id="mPos">&ndash;</b></div>
     <div class="stat"><span>RMS / m&aacute;x rumbo</span><b id="mHead">&ndash;</b></div>
+    <div class="stat"><span>Error lateral (en vivo)</span><b id="mLatLive">&ndash;</b></div>
+    <div class="stat"><span>RMS / m&aacute;x lateral</span><b id="mLat">&ndash;</b></div>
+    <div class="stat"><span>Actividad direcci&oacute;n [%/s]</span><b id="mAct">&ndash;</b></div>
+    <div class="stat"><span>Per&iacute;odo del lazo [ms]</span><b id="mLoop">&ndash;</b></div>
+    <div class="hint" style="margin:6px 0 2px;">Lateral = odometr&iacute;a (encoders + IMU) respecto de la referencia; se calcula igual con PI y con SMC. Historial (m&aacute;s reciente arriba):</div>
+    <div id="hist" style="font-size:11px;font-variant-numeric:tabular-nums;line-height:1.5;color:var(--txt2);"></div>
     <div style="height:10px;"></div>
     <div id="log" class="log"></div>
   </div>
@@ -218,10 +247,10 @@
 
     <div class="ctrl-grp">
       <div class="lbl"><span>Direcci&oacute;n &middot; L / R</span><b id="cDirSum">0%</b></div>
-      <div class="hbar-row"><span class="tag">P</span>
+      <div class="hbar-row"><span class="tag" id="tagDirP">P</span>
         <div class="hbar" style="height:14px;"><div class="mid"></div><div class="fill" id="cDirP"></div></div>
         <span class="val" id="cDirPv">0%</span></div>
-      <div class="hbar-row"><span class="tag">I</span>
+      <div class="hbar-row"><span class="tag" id="tagDirI">I</span>
         <div class="hbar" style="height:14px;"><div class="mid"></div><div class="fill" id="cDirI"></div></div>
         <span class="val" id="cDirIv">0%</span></div>
       <div class="hbar-row"><span class="tag sum">&Sigma;</span>
@@ -255,6 +284,10 @@
     <h2>Error de rumbo</h2>
     <div class="chart-box"><canvas id="chartErrHead"></canvas></div>
   </div>
+  <div class="card" style="flex:1;">
+    <h2>Error lateral (odometr&iacute;a)</h2>
+    <div class="chart-box"><canvas id="chartErrLat"></canvas></div>
+  </div>
 </div>
 
 <script>
@@ -267,13 +300,14 @@ const PB_CAPS    = "c5f50003-8280-46da-89f4-6d8051e4aeef";  // capacidades
 const CMD_START_PROGRAM = 0x01;   // arrancar el programa del hub
 const CMD_WRITE_STDIN   = 0x06;   // escribir en stdin del programa
 const EVT_WRITE_STDOUT  = 0x01;   // evento: el hub escribio en stdout
-const DASH_VERSION = "v1.0";   // version del dashboard (subir a mano al cambiar)
+const DASH_VERSION = "v1.2";   // version del dashboard (subir a mano al cambiar)
 
 let device=null, gattChar=null, maxWrite=20, rxBuffer="";
 let lastRxMs=0;   // timestamp del ultimo dato recibido del hub; para esperar a
                   // que termine de streamear PLAN antes de mandar START
 let connected=false, hubReady=false, running=false;
-let posErr=[], headErr=[];
+let posErr=[], headErr=[], latErr=[];
+let runCtrl="PI", actSum=0, actN=0, prevSc=null, runHist=[], lastLoop=null;
 
 // ---- Helpers de UI --------------------------------------------------------
 const $ = (id)=>document.getElementById(id);
@@ -297,6 +331,8 @@ function refreshButtons(){
   $("sendPiPosBtn").disabled = !hubReady || running;
   $("sendPiStBtn").disabled  = !hubReady || running;
   $("sendVelBtn").disabled   = !hubReady || running;
+  $("sendSmcBtn").disabled   = !hubReady || running;
+  $("ctrlSel").disabled      = running;
   $("startBtn").disabled    = !hubReady || running;
   $("stopBtn").disabled     = !connected || !running;
   $("resetBtn").disabled    = !hubReady || running;
@@ -331,13 +367,25 @@ function getPathString(){
   }
   return parts.join(";");
 }
+function getSmcString(){
+  return [Number($("smcLam").value),Number($("smcEta").value),Number($("smcPhi").value),
+          Number($("smcKi").value),Number($("smcTlead").value),Number($("smcPsi").value)].join(",");
+}
+function onCtrlChange(){
+  const smc = $("ctrlSel").value==="SMC";
+  $("smcBox").style.display = smc ? "block" : "none";
+  $("piStPart").style.opacity = smc ? "0.4" : "1";
+  $("tagDirP").textContent = smc ? "Eq" : "P";
+  $("tagDirI").textContent = smc ? "Sw" : "I";
+  try{ localStorage.setItem("auto_lego_ctrl", $("ctrlSel").value); }catch(e){}
+}
 function getPidString(){
   return [Number($("kpPos").value),Number($("kiPos").value),
           Number($("kpSt").value),Number($("kiSt").value)].join(",");
 }
 
 // ---- Graficos -------------------------------------------------------------
-let chartPos, chartHead, chartXY, chartErrPos, chartErrHead;
+let chartPos, chartHead, chartXY, chartErrPos, chartErrHead, chartErrLat;
 const COL = {ref:"#f59e0b", real:"#38bdf8", plan:"#64748b", err:"#ef4444", wp:"#facc15"};
 
 // Plugin que dibuja una flechita en cada waypoint indicando su rumbo.
@@ -433,6 +481,7 @@ function mkErrorChart(canvasId, yLabel){
   });
 }
 function initCharts(){
+  chartErrLat  = mkErrorChart("chartErrLat","error lateral [cm]");
   chartPos     = mkTimeChart("chartPos","posición [cm]");
   chartHead    = mkTimeChart("chartHead","rumbo [°]");
   chartXY      = mkXYChart();
@@ -445,14 +494,14 @@ function clearCharts(){
   // mismo array y hacer update() completo lo borra siempre. En chartXY se
   // conserva el dataset de Waypoints.
   const wipe = (ch) => ch.data.datasets.forEach(d => { if(d.label !== 'Waypoints') d.data.length = 0; });
-  [chartPos, chartHead, chartErrPos, chartErrHead].forEach(wipe);
+  [chartPos, chartHead, chartErrPos, chartErrHead, chartErrLat].forEach(wipe);
   wipe(chartXY);
   // Soltar el zoom fijado del ensayo anterior para que se recalcule de cero.
   chartXY.options.scales.x.min = undefined; chartXY.options.scales.x.max = undefined;
   chartXY.options.scales.y.min = undefined; chartXY.options.scales.y.max = undefined;
   squareXY();
   chartPos.update(); chartHead.update(); chartXY.update();
-  chartErrPos.update(); chartErrHead.update();
+  chartErrPos.update(); chartErrHead.update(); chartErrLat.update();
   resetControls();
 }
 function refreshWaypoints(){
@@ -593,6 +642,7 @@ function handleLine(line){
   if(line.startsWith("T ")){ addTelemetry(line.slice(2)); return; }
   if(line.startsWith("PLAN ")){ addPlan(line.slice(5)); log("Trayectoria planificada recibida."); return; }
   if(line.startsWith("BAT ")){ updateBattery(line.slice(4)); return; }
+  if(line.startsWith("LOOP ")){ const pp=line.slice(5).trim().split(/\s+/); lastLoop=Number(pp[0]); const ovr=pp.length>1?Number(pp[1]):null; $("mLoop").textContent=lastLoop.toFixed(2)+(ovr===null?"":" ("+ovr+" ovr)"); log(line); return; }
   log(line);
   if(line==="RDY"){
     if(!hubReady){ hubReady=true; setConn("hub"); refreshButtons();
@@ -621,6 +671,15 @@ function addTelemetry(csv){
   chartErrPos.data.datasets[0].data.push({x:t,y:pe});
   chartErrHead.data.datasets[0].data.push({x:t,y:se});
   posErr.push(pe); headErr.push(se);
+  if(f.length>=17){
+    const ey=f[15];
+    latErr.push(ey);
+    chartErrLat.data.datasets[0].data.push({x:t,y:ey});
+    $("mLatLive").textContent=ey.toFixed(2)+" cm";
+    chartErrLat.update("none");
+  }
+  if(prevSc!==null){ actSum+=Math.abs(f[8]-prevSc); actN++; }
+  prevSc=f[8];
   $("stTime").textContent=t.toFixed(1)+" s";
   $("mPosLive").textContent=pe.toFixed(2)+" cm";
   $("mHeadLive").textContent=se.toFixed(2)+" °";
@@ -641,9 +700,11 @@ function addPlan(str){
 async function onStart(){
   const path=getPathString();
   if(path.split(";").length<2){ alert("Cargá al menos 2 waypoints."); return; }
-  clearCharts(); posErr=[]; headErr=[];
+  clearCharts(); posErr=[]; headErr=[]; latErr=[];
+  actSum=0; actN=0; prevSc=null; lastLoop=null; runCtrl=$("ctrlSel").value;
   $("mPos").textContent="–"; $("mHead").textContent="–";
   $("mPosLive").textContent="–"; $("mHeadLive").textContent="–";
+  $("mLat").textContent="–"; $("mLatLive").textContent="–"; $("mAct").textContent="–"; $("mLoop").textContent="–";
   running=true; refreshButtons();
   $("stRun").textContent="En curso"; $("stSeg").textContent="–";
   $("stTime").textContent="0.0 s";
@@ -661,6 +722,13 @@ async function onStart(){
     await sendCommand("PI "+getPidString());
     await sleep(200);
     await waitQuiet(350, 5000);
+    await sendCommand("CTRL "+runCtrl);
+    await sleep(150);
+    if(runCtrl==="SMC"){
+      await sendCommand("SMC "+getSmcString());
+      await sleep(150);
+    }
+    await waitQuiet(350, 5000);
     await sendCommand("START");
   }catch(e){ log("Error al iniciar: "+e.message,"err"); running=false; refreshButtons(); }
 }
@@ -675,6 +743,21 @@ function onRunEnd(status){
   if(posErr.length){
     $("mPos").textContent = rms(posErr).toFixed(2)+" / "+amax(posErr).toFixed(2)+" cm";
     $("mHead").textContent= rms(headErr).toFixed(2)+" / "+amax(headErr).toFixed(2)+" °";
+  }
+  if(latErr.length){
+    $("mLat").textContent = rms(latErr).toFixed(2)+" / "+amax(latErr).toFixed(2)+" cm";
+  }
+  // Actividad de direccion: variacion total del comando por segundo (muestras a 10 Hz).
+  const act = actN ? (actSum/actN)*10 : 0;
+  $("mAct").textContent = act.toFixed(0);
+  if(posErr.length){
+    runHist.unshift({ctrl:runCtrl, st:status, pos:rms(posErr), head:rms(headErr),
+      lat:latErr.length?rms(latErr):NaN, latMax:latErr.length?amax(latErr):NaN, act:act, loop:lastLoop});
+    if(runHist.length>8) runHist.pop();
+    $("hist").innerHTML = runHist.map((r,i)=>
+      "#"+(runHist.length-i)+" <b>"+r.ctrl+"</b> pos "+r.pos.toFixed(2)+" cm &middot; rumbo "+r.head.toFixed(2)+"&deg; &middot; lat "+
+      (isNaN(r.lat)?"–":r.lat.toFixed(2)+"/"+r.latMax.toFixed(2))+" cm &middot; act "+r.act.toFixed(0)+" %/s"+
+      (r.st==="ok"?"":" ("+r.st+")")).join("<br>");
   }
 }
 function rms(a){ let s=0; for(const v of a) s+=v*v; return Math.sqrt(s/a.length); }
@@ -734,7 +817,7 @@ function applyChartColors(){
   const tick=cs.getPropertyValue('--txt2').trim();
   const grid=cs.getPropertyValue('--line').trim();
   const txt =cs.getPropertyValue('--txt').trim();
-  [chartPos,chartHead,chartXY,chartErrPos,chartErrHead].forEach(ch=>{
+  [chartPos,chartHead,chartXY,chartErrPos,chartErrHead,chartErrLat].forEach(ch=>{
     if(!ch) return;
     for(const ax of ['x','y']){
       const s=ch.options.scales[ax];
@@ -765,6 +848,10 @@ window.addEventListener("load",()=>{
   $("sendPiPosBtn").onclick=()=>sendCommand("PI "+getPidString());
   $("sendPiStBtn").onclick =()=>sendCommand("PI "+getPidString());
   $("sendVelBtn").onclick  =()=>sendCommand("VEL "+Number($("vel").value));
+  $("sendSmcBtn").onclick  =()=>sendCommand("CTRL SMC").then(()=>sleep(150)).then(()=>sendCommand("SMC "+getSmcString()));
+  $("ctrlSel").onchange=onCtrlChange;
+  try{ const c=localStorage.getItem("auto_lego_ctrl"); if(c==="SMC"||c==="PI") $("ctrlSel").value=c; }catch(e){}
+  onCtrlChange();
   $("startBtn").onclick=onStart;
   $("stopBtn").onclick =onStop;
   $("resetBtn").onclick=()=>sendCommand("RESET");

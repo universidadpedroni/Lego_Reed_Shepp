@@ -24,6 +24,8 @@
 #   PI  kp_pos,ki_pos,kp_st,ki_st   ganancias de los PI
 #   VEL v                          velocidad lineal de referencia [cm/s]
 #   ALG RS|DUBINS                   elige el planner (default RS)
+#   CTRL PI|SMC                     controlador de DIRECCION (default PI)
+#   SMC lam,eta,phi,ki,tlead,psi    parametros del SMC (ver smc_control.py)
 #   START                          calcula la trayectoria y arranca el ensayo
 #   STOP                           frena el auto de inmediato
 #   RESET                          pone los sensores (IMU + encoders) a 0
@@ -36,9 +38,10 @@
 #   ERR <texto>                    comando rechazado
 #   SEG i n                        arranca el tramo i de n
 #   PLAN x,y;x,y;...               trayectoria planificada de un tramo (cm)
-#   T t,pr,pv,pe,pc,sr,sv,se,sc,x,y,pP,pI,sP,sI   telemetria (ver mas abajo)
+#   T t,pr,pv,pe,pc,sr,sv,se,sc,x,y,pP,pI,sP,sI,ey,ss   telemetria (ver mas abajo)
 #   END ok|stop|stall|timeout|error   fin del ensayo
 #   BAT mv,ma                      bateria: tension [mV] y corriente [mA]
+#   LOOP ms ovr                    periodo real medio del lazo [ms/tick] y desbordes (ticks que tardaron mas que LOOP_MS)
 #
 # Campos de la telemetria T:
 #   t  tiempo [s]            pr posicion referencia [cm]   pv posicion real [cm]
@@ -46,6 +49,8 @@
 #   sv rumbo real [grados]   se error rumbo [grados]       sc comando direccion
 #   x  posicion X global [cm]   y posicion Y global [cm]
 #   pP/pI accion traccion P e I    sP/sI accion direccion P e I (con gear)
+#   ey error lateral [cm] (odometria, marco de la referencia)   ss variable de deslizamiento s [rad]
+#   Con CTRL SMC: sP = control equivalente, sI = termino conmutado (+integral), ambos en % y con signo de sc.
 #   pc=clamp(pP+pI), sc=gear*clamp(sP+sI). Si pP+pI o sP+sI exceden el
 #   limite, pc/sc saturan pero pP,pI,sP,sI siguen: asi se ve el windup.
 # =============================================================================
@@ -76,8 +81,9 @@ from pybricks.pupdevices import Motor
 
 from reeds_shepp import get_best_path, normalize_start_and_end_point, denormalize_distance_in_path
 from dubinsPathPlanning import get_best_dubins
-from vehicleConstants import v, max_angle_power, max_drive_power, r_turn_min
+from vehicleConstants import v, max_angle_power, max_drive_power, r_turn_min, L_car, psi_max
 from controlConstants import KP_POSITION, KI_POSITION, KP_STEERING, KI_STEERING
+from smc_control import LateralSMC
 import umath
 import gc
 
@@ -88,6 +94,18 @@ from uselect import poll
 
 
 ANGLE_TO_CM = 0.045
+
+# Periodo FIJO del lazo de control [ms]. La referencia avanza POR TICK (delta_s =
+# h*VELOCITY/1000), asi que la velocidad real es VELOCITY solo si el periodo real del
+# lazo es h. Con wait(1) el periodo real salia ~3.5 ms (lectura de sensores + calculo) y
+# el auto andaba a ~1/3.5 de VELOCITY. Ahora el lazo espera lo que falta hasta LOOP_MS.
+# Condiciones: dividir a 100 (telemetria cada 100 ms) y ser mayor que el tiempo de calculo
+# del lazo (la linea LOOP informa el periodo medio y los desbordes; desbordes > 0 => subir).
+LOOP_MS = 10
+# Periodo real [ms] con el que se sintonizo el PI (medido con el lazo libre: 2.34 ms). Los Ki
+# estan definidos POR TICK a ese periodo; se reescalan por LOOP_MS/KI_REF_MS para que el
+# efecto por segundo del PI no cambie al fijar el periodo.
+KI_REF_MS = 2.34
 
 # Reeds-Shepp y Dubins generan segmentos de transicion de distancia casi nula
 # (los giros 't' y 'v' de las curvas CSC suelen dar 0). Si esos segmentos
@@ -115,6 +133,15 @@ VELOCITY = v
 
 # Algoritmo de planificacion. 'RS' o 'DUBINS'. El comando ALG lo cambia.
 ALGORITHM = 'RS'
+
+# Controlador de DIRECCION: 'PI' (rumbo, el de siempre) o 'SMC' (modos deslizantes,
+# ver smc_control.py y SMC/SMC_diseno.md). El comando CTRL lo cambia. La traccion
+# sigue siendo el PI de posicion en ambos casos.
+CONTROLLER = 'PI'
+# lam [1/cm], eta [1/cm], phi [rad], ki, tlead [s] (anticipacion de curvatura),
+# psi [grados] = angulo de rueda efectivo a +-100 % de direccion (calibrar).
+SMC_PARAMS = {'lam': 0.035, 'eta': 0.008, 'phi': 0.05, 'ki': 0.0,
+              'tlead': 0.2, 'psi': psi_max}
 
 # Cache de la trayectoria calculada al recibir PATH (para graficarla antes del
 # ensayo y no recalcular en START). Se invalida al cambiar PATH o ALG.
@@ -204,6 +231,37 @@ def set_algorithm(arg):
         return False
     ALGORITHM = arg
     LEGS = None
+    return True
+
+
+def set_controller(arg):
+    """'PI' o 'SMC' -> actualiza CONTROLLER. Devuelve True si ok."""
+    global CONTROLLER
+    arg = arg.strip().upper()
+    if arg not in ('PI', 'SMC'):
+        return False
+    CONTROLLER = arg
+    return True
+
+
+def set_smc(arg):
+    """'lam,eta,phi,ki,tlead,psi' -> actualiza SMC_PARAMS. Devuelve True si ok."""
+    parts = arg.split(',')
+    if len(parts) != 6:
+        return False
+    try:
+        lam = float(parts[0]); eta = float(parts[1]); phi = float(parts[2])
+        ki = float(parts[3]); tlead = float(parts[4]); psi = float(parts[5])
+    except:
+        return False
+    if lam <= 0 or eta <= 0 or phi <= 0 or ki < 0 or tlead < 0 or psi < 5 or psi > 35:
+        return False
+    SMC_PARAMS['lam'] = lam
+    SMC_PARAMS['eta'] = eta
+    SMC_PARAMS['phi'] = phi
+    SMC_PARAMS['ki'] = ki
+    SMC_PARAMS['tlead'] = tlead
+    SMC_PARAMS['psi'] = psi
     return True
 
 
@@ -321,16 +379,16 @@ def saturate(value, limit):
 
 def send_telemetry(t, pos_ref, pos_veh, pos_err, pos_cmd,
                    st_ref_deg, st_veh, st_err, st_cmd,
-                   x, y, pP, pI, sP, sI):
+                   x, y, pP, pI, sP, sI, ey, ss):
     """Imprime una linea T de telemetria al dashboard (formato y campos en
     la cabecera del archivo)."""
-    print("T {:.2f},{:.2f},{:.2f},{:.2f},{},{:.2f},{:.2f},{:.2f},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f}".format(
+    print("T {:.2f},{:.2f},{:.2f},{:.2f},{},{:.2f},{:.2f},{:.2f},{},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.1f},{:.2f},{:.3f}".format(
         t, pos_ref, pos_veh, pos_err, pos_cmd,
         st_ref_deg, st_veh, st_err, st_cmd,
-        x, y, pP, pI, sP, sI))
+        x, y, pP, pI, sP, sI, ey, ss))
 
 
-def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
+def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=LOOP_MS):
     """Maneja el auto por un tramo. Devuelve 'ok', 'stop', 'stall' o
     'timeout'."""
     elapsed_time_max = 30      # [seg] watchdog por tramo
@@ -339,6 +397,20 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
 
     steering_reference = 0.0
     delta_s = h * VELOCITY / 1000.0
+
+    # Pose de la REFERENCIA en el marco del tramo (misma integracion Euler que la
+    # referencia de rumbo/arco): da el error lateral e_y y el atraso e_s para el
+    # SMC y para la metrica de error lateral (que se reporta con PI y con SMC).
+    x_ref = 0.0
+    y_ref = 0.0
+    use_smc = (CONTROLLER == 'SMC')
+    smc = LateralSMC(L_car, SMC_PARAMS['psi'], SMC_PARAMS['lam'], SMC_PARAMS['eta'],
+                     SMC_PARAMS['phi'], SMC_PARAMS['ki'])
+    ki_scale = h / KI_REF_MS
+    loop_ticks = 0
+    overruns = 0
+    loop_t0 = run_watch.time()
+    next_tick = loop_t0
 
     # Frame global del tramo, para reportar la posicion (x, y) del auto.
     to_global = make_frame(leg_start)
@@ -372,6 +444,9 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
         position_vehicle_prev = 0.0
         steering_I = 0.0
         position_I = 0.0
+        smc.reset()
+        kappa_ref = -steer_dir / r_turn_min      # curvatura de la referencia (+ = izquierda)
+        nxt = path[i + 1] if i + 1 < len(path) else None
 
         while abs(position_vehicle) <= distance and (elapsed_time / 1000.0) < elapsed_time_max:
             # STOP de emergencia desde el dashboard
@@ -399,6 +474,10 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
                     # por redondeo en float, equivalente al q = qf del resumen).
                     position_reference = gear * distance
                     steering_reference = head_ref_seg0 + gear * steer_dir * distance / r_turn_min
+                # pose de la referencia (convencion matematica, igual que la odometria)
+                th_r = -steering_reference
+                x_ref += gear * ds_seg * umath.cos(th_r)
+                y_ref += gear * ds_seg * umath.sin(th_r)
 
             # Estado del vehiculo
             position_vehicle = 0.5 * (front.angle() + rear.angle()) * ANGLE_TO_CM
@@ -408,30 +487,64 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
             position_error = position_reference - position_vehicle
             steering_error = umath.degrees(steering_reference) - steering_vehicle
 
-            # --- Accion de control de POSICION (traccion), PI ---
-            position_P = GAINS['kp_pos'] * position_error
-            position_I += GAINS['ki_pos'] * position_error
-            position_command = saturate(position_P + position_I, max_drive_power)
-
-            # --- Accion de control de DIRECCION (steering), PI ---
-            steering_P = GAINS['kp_st'] * steering_error
-            steering_I += GAINS['ki_st'] * steering_error
-            steering_command = gear * saturate(steering_P + steering_I, max_angle_power)
-
-            audi.steer(steering_command)
-            audi.drive_power(position_command)
-
-            # Integracion de la posicion (x, y) global del auto. El rumbo del
-            # IMU se invierte de signo SOLO para esta integracion (convencion
-            # matematica estandar), no afecta el lazo de control.
+            # Odometria (x, y) del auto. El rumbo del IMU se invierte de signo SOLO
+            # para esta integracion (convencion matematica estandar).
             ds = position_vehicle - position_vehicle_prev
             position_vehicle_prev = position_vehicle
             heading_rad = -umath.radians(steering_vehicle)
             x_local += ds * umath.cos(heading_rad)
             y_local += ds * umath.sin(heading_rad)
 
-            wait(h)
+            # Errores de traza en el marco de la referencia: e_s (atraso a lo largo),
+            # e_y (lateral, + = izquierda).
+            th_r = -steering_reference
+            c_r = umath.cos(th_r)
+            s_r = umath.sin(th_r)
+            dx_r = x_local - x_ref
+            dy_r = y_local - y_ref
+            e_s = c_r * dx_r + s_r * dy_r
+            e_y = -s_r * dx_r + c_r * dy_r
+
+            # --- Accion de control de POSICION (traccion), PI ---
+            position_P = GAINS['kp_pos'] * position_error
+            position_I += GAINS['ki_pos'] * ki_scale * position_error
+            position_command = saturate(position_P + position_I, max_drive_power)
+
+            # --- Accion de control de DIRECCION (steering) ---
+            if use_smc:
+                # SMC: superficie s = e_g + lam*gear*e_y (ver smc_control.py). Sale en
+                # convencion matematica (+ = izquierda); el hub usa compass (CW+): signo -.
+                k_lead = kappa_ref
+                if (nxt is not None and nxt['gear'] == gear and
+                        distance - abs(position_vehicle) < VELOCITY * SMC_PARAMS['tlead']):
+                    k_lead = -nxt['steering'] / r_turn_min    # anticipa la curvatura que viene
+                pct = smc.update(gear, umath.radians(steering_error), e_y, e_s,
+                                 kappa_ref, abs(ds), k_lead)
+                steering_command = saturate(-pct, max_angle_power)
+                # Para las barras del dashboard: P = control equivalente, I = conmutado
+                # (ambos con el signo de steering_command; la telemetria los multiplica
+                # por gear, por eso se divide aca).
+                steering_P = -gear * smc.pct_eq
+                steering_I = -gear * smc.pct_sw
+            else:
+                steering_P = GAINS['kp_st'] * steering_error
+                steering_I += GAINS['ki_st'] * ki_scale * steering_error
+                steering_command = gear * saturate(steering_P + steering_I, max_angle_power)
+
+            audi.steer(steering_command)
+            audi.drive_power(position_command)
+
+            # Lazo a periodo fijo: espera lo que falta hasta el proximo tick. Si el calculo
+            # tardo mas que h, resincroniza y cuenta el desborde.
+            next_tick += h
+            rem = next_tick - run_watch.time()
+            if rem > 0:
+                wait(rem)
+            elif rem < 0:
+                overruns += 1
+                next_tick = run_watch.time()
             elapsed_time += h
+            loop_ticks += 1
 
             # Telemetria al dashboard, cada 100 ms
             if elapsed_time % 100 == 0:
@@ -441,7 +554,8 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
                     position_reference, position_vehicle, position_error, position_command,
                     umath.degrees(steering_reference), steering_vehicle, steering_error, steering_command,
                     x_global, y_global,
-                    position_P, position_I, gear * steering_P, gear * steering_I)
+                    position_P, position_I, gear * steering_P, gear * steering_I,
+                    e_y, smc.s if use_smc else 0.0)
 
         # Watchdog de tiempo
         if (elapsed_time / 1000.0) >= elapsed_time_max:
@@ -449,6 +563,8 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=1):
             return 'timeout'
 
     stop_car()
+    if loop_ticks > 0:
+        print("LOOP {:.2f} {}".format((run_watch.time() - loop_t0) / loop_ticks, overruns))
     return 'ok'
 
 
@@ -523,7 +639,7 @@ def main():
     setup()
     PATH = None
     print("RDY")
-    print("VER 13 rs-dubins-pi-eulerN")
+    print("VER 15 rs-dubins-pi-smc-loopfijo")
     send_battery()
 
     while True:
@@ -567,6 +683,20 @@ def main():
                 print("ACK ALG {}".format(ALGORITHM))
             else:
                 print("ERR ALG invalido (RS o DUBINS)")
+
+        elif line.startswith("CTRL "):
+            if set_controller(line[5:]):
+                print("ACK CTRL {}".format(CONTROLLER))
+            else:
+                print("ERR CTRL invalido (PI o SMC)")
+
+        elif line.startswith("SMC "):
+            if set_smc(line[4:]):
+                print("ACK SMC {},{},{},{},{},{}".format(
+                    SMC_PARAMS['lam'], SMC_PARAMS['eta'], SMC_PARAMS['phi'],
+                    SMC_PARAMS['ki'], SMC_PARAMS['tlead'], SMC_PARAMS['psi']))
+            else:
+                print("ERR SMC invalido (lam,eta,phi,ki,tlead,psi; todos > 0 salvo ki y tlead >= 0; psi 5..35)")
 
         elif line == "START":
             if not PATH:

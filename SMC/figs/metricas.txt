@@ -1,0 +1,21 @@
+d_*: distancia verdadera al camino [cm] (d_late: RMS para t>2.5 s); TV: variacion total del
+comando de direccion [%/s]; fin_lat/fin_th: error LATERAL [cm] y de rumbo [deg] de la pose
+verdadera al cruzar el final del ultimo tramo, en el marco de la referencia
+
+escenario                     config                    d_rms  d_max  d_late  TV[%/s]  fin_lat   fin_th  T[s]  estado
+S1 nominal                    A: PI+PI (firmware)        0.62   1.23    0.64       88    -0.52     0.85  12.9  ok
+S1 nominal                    B: PI + FF/preview         0.22   0.83    0.23       82     0.41    -0.42  12.9  ok
+S1 nominal                    C: SMC dir + PI tracc      0.20   0.85    0.21       57     0.17     0.04  12.9  ok
+S1 nominal                    D: SMC dir + SMC tracc     0.23   0.95    0.24       55     0.24    -0.01  12.8  ok
+S2 offset inicial 10cm+15deg  A: PI+PI (firmware)        8.62  11.48    8.18       92    -0.60     0.85  12.9  ok
+S2 offset inicial 10cm+15deg  B: PI + FF/preview         9.22  12.04    8.63       84     0.18    -0.42  12.9  ok
+S2 offset inicial 10cm+15deg  C: SMC dir + PI tracc      7.15  12.38    5.50       52     0.30    -1.24  12.9  ok
+S2 offset inicial 10cm+15deg  D: SMC dir + SMC tracc     7.14  12.39    5.48       51     0.35    -1.28  12.8  ok
+S3 planta incierta            A: PI+PI (firmware)        1.74   3.99    1.93       50    -3.86    -0.90  12.9  ok
+S3 planta incierta            B: PI + FF/preview         1.93   3.81    2.14       56    -2.74    -2.03  12.9  ok
+S3 planta incierta            C: SMC dir + PI tracc      1.75   3.72    1.94       43    -3.25    -1.91  12.9  ok
+S3 planta incierta            D: SMC dir + SMC tracc     1.45   2.98    1.61       45    -2.28    -2.05  13.0  ok
+S4 patinaje (kick guinada)    A: PI+PI (firmware)        0.65   1.32    0.68      100    -0.65     0.85  12.9  ok
+S4 patinaje (kick guinada)    B: PI + FF/preview         0.29   0.58    0.30       90     0.28    -0.42  12.9  ok
+S4 patinaje (kick guinada)    C: SMC dir + PI tracc      0.27   0.59    0.29       53     0.14    -0.17  12.9  ok
+S4 patinaje (kick guinada)    D: SMC dir + SMC tracc     0.29   0.69    0.31       53     0.23    -0.20  12.8  ok
