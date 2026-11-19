@@ -1,5 +1,5 @@
 # ============================================================================
-# main_bundle.py - GENERADO por SMC/make_bundle.py (2026-11-19 21:07). NO EDITAR A MANO:
+# main_bundle.py - GENERADO por SMC/make_bundle.py (2026-11-19 21:20). NO EDITAR A MANO:
 # editar los .py originales y volver a correr el script.
 # ============================================================================
 import umath
@@ -919,6 +919,8 @@ class SpeedSMC:
 #   PATH x,y,h;x,y,h;...            waypoints (x,y en cm, h en grados)
 #   PI  kp_pos,ki_pos,kp_st,ki_st   ganancias de los PI
 #   VEL v                          velocidad lineal de referencia [cm/s]
+#   PROF CONST|TRAP                perfil de velocidad de la referencia (default TRAP)
+#   ACC a                          aceleracion/frenado del perfil TRAP [cm/s^2]
 #   ALG RS|DUBINS                   elige el planner (default RS)
 #   CTRL PI|SMC                     controlador de DIRECCION (default PI)
 #   SMC lam,eta,phi,ki,tlead,psi    parametros del SMC (ver smc_control.py)
@@ -988,6 +990,15 @@ LOOP_MS = 5
 # estan definidos POR TICK a ese periodo; se reescalan por LOOP_MS/KI_REF_MS para que el
 # efecto por segundo del PI no cambie al fijar el periodo.
 KI_REF_MS = 2.34
+
+# Perfil de velocidad TRAPEZOIDAL de la referencia. Con velocidad constante la referencia
+# arrancaba y frenaba con un escalon: la traccion (tau ~0.15 s) no lo sigue y queda error al
+# terminar. Ahora la referencia acelera con ACCEL [cm/s^2] hasta VELOCITY y frena con la misma
+# rampa, SOLO al inicio del recorrido, al final y en los cambios de marcha (cusps); entre
+# tramos del mismo sentido sigue a VELOCITY. PROFILE = 'CONST' (o ACCEL = 0) -> velocidad constante.
+PROFILE = 'TRAP'  # 'CONST' (velocidad constante, escalon) | 'TRAP' (trapezoidal)
+ACCEL = 80.0      # [cm/s^2] aceleracion/frenado del perfil TRAP
+V_MIN_REF = 2.0   # [cm/s] piso de la rampa de frenado (para que la referencia llegue)
 
 # Reeds-Shepp y Dubins generan segmentos de transicion de distancia casi nula
 # (los giros 't' y 'v' de las curvas CSC suelen dar 0). Si esos segmentos
@@ -1101,6 +1112,29 @@ def set_velocity(arg):
     if val <= 0:
         return False
     VELOCITY = val
+    return True
+
+
+def set_profile(arg):
+    """'CONST' o 'TRAP' -> actualiza PROFILE. Devuelve True si ok."""
+    global PROFILE
+    name = arg.strip().upper()
+    if name != 'CONST' and name != 'TRAP':
+        return False
+    PROFILE = name
+    return True
+
+
+def set_accel(arg):
+    """'<a>' en cm/s^2 -> actualiza ACCEL. Devuelve True si ok (numero >= 0)."""
+    global ACCEL
+    try:
+        val = float(arg)
+    except:
+        return False
+    if val < 0:
+        return False
+    ACCEL = val
     return True
 
 
@@ -1318,6 +1352,13 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=LOOP_MS):
         ds_seg = distance / N_seg
         ref_ticks = 0
         head_ref_seg0 = steering_reference   # rumbo acumulado al entrar al tramo
+        # Perfil trapezoidal: arranca/termina en reposo solo en los extremos del recorrido y en
+        # los cambios de marcha; entre tramos del mismo sentido mantiene VELOCITY.
+        v0_ref = VELOCITY if (i > 0 and path[i - 1]['gear'] == gear) else 0.0
+        v1_ref = VELOCITY if (i + 1 < len(path) and path[i + 1]['gear'] == gear) else 0.0
+        ref_v = v0_ref
+        s_ref = 0.0
+        ref_done = False
 
         front.reset_angle(0)
         rear.reset_angle(0)
@@ -1346,20 +1387,36 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=LOOP_MS):
             # de rumbo que se arrastra al proximo segmento), avanzamos ds_seg
             # exactos N_seg veces y en el ultimo tick clavamos la referencia en
             # su valor final: cierra exacto y no acumula deriva de rumbo.
-            if ref_ticks < N_seg:
-                ref_ticks += 1
-                if ref_ticks < N_seg:
-                    position_reference += gear * ds_seg
-                    steering_reference += gear * steer_dir * ds_seg / r_turn_min
+            if not ref_done:
+                if PROFILE == 'TRAP' and ACCEL > 0:
+                    # trapecio: sube con ACCEL, frena para llegar a v1_ref en 'distance'
+                    rem = distance - s_ref
+                    ref_v = min(VELOCITY, ref_v + ACCEL * h / 1000.0,
+                                umath.sqrt(v1_ref * v1_ref + 2.0 * ACCEL * rem))
+                    if ref_v < V_MIN_REF:
+                        ref_v = V_MIN_REF
+                    ds_ref = ref_v * h / 1000.0
+                    last_tick = ds_ref >= rem
+                    if last_tick:
+                        ds_ref = rem
+                    s_ref += ds_ref
+                else:
+                    ref_ticks += 1
+                    ds_ref = ds_seg
+                    last_tick = ref_ticks >= N_seg
+                if not last_tick:
+                    position_reference += gear * ds_ref
+                    steering_reference += gear * steer_dir * ds_ref / r_turn_min
                 else:
                     # ultimo tick del tramo: snap al valor exacto (mata la deriva
                     # por redondeo en float, equivalente al q = qf del resumen).
                     position_reference = gear * distance
                     steering_reference = head_ref_seg0 + gear * steer_dir * distance / r_turn_min
+                    ref_done = True
                 # pose de la referencia (convencion matematica, igual que la odometria)
                 th_r = -steering_reference
-                x_ref += gear * ds_seg * umath.cos(th_r)
-                y_ref += gear * ds_seg * umath.sin(th_r)
+                x_ref += gear * ds_ref * umath.cos(th_r)
+                y_ref += gear * ds_ref * umath.sin(th_r)
 
             # Estado del vehiculo
             position_vehicle = 0.5 * (front.angle() + rear.angle()) * ANGLE_TO_CM
@@ -1557,6 +1614,18 @@ def main():
                     GAINS['kp_pos'], GAINS['ki_pos'], GAINS['kp_st'], GAINS['ki_st']))
             else:
                 print("ERR PI invalido (4 numeros)")
+
+        elif line.startswith("PROF "):
+            if set_profile(line[5:]):
+                print("ACK PROF {}".format(PROFILE))
+            else:
+                print("ERR PROF invalido (CONST o TRAP)")
+
+        elif line.startswith("ACC "):
+            if set_accel(line[4:]):
+                print("ACK ACC {}".format(ACCEL))
+            else:
+                print("ERR ACC invalido (1 numero >= 0)")
 
         elif line.startswith("VEL "):
             if set_velocity(line[4:]):

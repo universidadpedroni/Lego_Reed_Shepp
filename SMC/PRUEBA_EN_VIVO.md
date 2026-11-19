@@ -1,6 +1,6 @@
 # Prueba en vivo del SMC en el auto (reemplaza las secciones 8 y 9.5 de SMC_diseno.md)
 
-Estado: SMC integrado en main_rs.py (VER 15) y en dashboard.html (v1.3). Verificado solo con stubs
+Estado: SMC integrado en main_rs.py (VER 15) y en dashboard.html (v1.4). Verificado solo con stubs
 (SMC/test_firmware_stub.py corre el controlDelVehiculo real contra la planta simulada; SMC/test_dashboard.js
 prueba la logica del dashboard con jsdom). NO probado todavia en el hub real.
 
@@ -54,3 +54,11 @@ sus modulos adentro (sin imports locales). Se sube SOLO ese archivo (BlocklyPy C
 Volver a correr el script despues de editar cualquier .py del hub. SMC/test_firmware_stub.py prueba los dos
 (FW_MODULE=main_bundle para el bundle). Una sola conexion BLE a la vez: desconectar el Commander antes de conectar
 el dashboard (y al reves).
+
+## Perfil de velocidad de la referencia (dashboard v1.4)
+
+Selector "Perfil de velocidad": Trapezoidal (default) o Constante. Comandos del hub: PROF CONST|TRAP y ACC a [cm/s^2] (default 80).
+- Constante: la referencia arranca y frena con un escalon; la traccion (tau ~0.15 s) no lo sigue y el auto cruza el final a ~VELOCITY (en simulacion a 40 cm/s: ~40 cm/s, unos 6 cm de avance por inercia).
+- Trapezoidal: sube con ACC hasta VELOCITY y frena con la misma rampa, solo al inicio del recorrido, al final y en los cambios de marcha; entre tramos del mismo sentido va a VELOCITY. En simulacion (VEL 40): a=50 cruza el final a 6 cm/s (1 cm de inercia), a=100 a 9 cm/s, a=200 a 28 cm/s. Cuesta tiempo: T 6.8 s (a=50), 6.1 s (a=100), 5.5 s (constante).
+- Con SMC el perfil trapezoidal tambien baja el error: d_rms 0.33 -> 0.24 cm y d_max 1.84 -> 0.66 cm (a=50). El PI casi no cambia (d_rms 1.07 -> 1.16).
+- A comparar en el auto: error de posicion al detenerse (cuanto avanza de mas despues del ultimo tramo) con Constante vs Trapezoidal a=80, mismo PATH y VEL 40.

@@ -182,6 +182,8 @@
     </div>
     <div class="hint">Cada &laquo;Enviar&raquo; manda el PI completo (posici&oacute;n + rumbo).</div>
     <div class="field" style="margin-top:12px;"><label>Velocidad [cm/s]</label><input id="vel" type="number" step="1" value="40"></div>
+    <div class="field" style="margin-top:8px;"><label>Perfil de velocidad</label><select id="profSel"><option value="TRAP" selected>Trapezoidal (rampa de aceleraci&oacute;n y frenado)</option><option value="CONST">Constante (sin rampas)</option></select></div>
+    <div class="field" id="accBox" style="margin-top:8px;"><label>Aceleraci&oacute;n [cm/s&sup2;]</label><input id="acc" type="number" step="10" min="1" value="80"></div>
     <button id="sendVelBtn" class="btn-ghost" disabled style="width:100%;">Enviar velocidad</button>
   </div>
 
@@ -300,7 +302,7 @@ const PB_CAPS    = "c5f50003-8280-46da-89f4-6d8051e4aeef";  // capacidades
 const CMD_START_PROGRAM = 0x01;   // arrancar el programa del hub
 const CMD_WRITE_STDIN   = 0x06;   // escribir en stdin del programa
 const EVT_WRITE_STDOUT  = 0x01;   // evento: el hub escribio en stdout
-const DASH_VERSION = "v1.3";   // version del dashboard (subir a mano al cambiar)
+const DASH_VERSION = "v1.4";   // version del dashboard (subir a mano al cambiar)
 
 let device=null, gattChar=null, maxWrite=20, rxBuffer="";
 let lastRxMs=0;   // timestamp del ultimo dato recibido del hub; para esperar a
@@ -333,6 +335,8 @@ function refreshButtons(){
   $("sendVelBtn").disabled   = !hubReady || running;
   $("sendSmcBtn").disabled   = !hubReady || running;
   $("ctrlSel").disabled      = running;
+  $("profSel").disabled      = running;
+  $("acc").disabled          = running || $("profSel").value!=="TRAP";
   $("startBtn").disabled    = !hubReady || running;
   $("stopBtn").disabled     = !connected || !running;
   $("resetBtn").disabled    = !hubReady || running;
@@ -378,6 +382,11 @@ function onCtrlChange(){
   $("tagDirP").textContent = smc ? "Eq" : "P";
   $("tagDirI").textContent = smc ? "Sw" : "I";
   try{ localStorage.setItem("auto_lego_ctrl", $("ctrlSel").value); }catch(e){}
+}
+function onProfChange(){
+  $("acc").disabled = running || $("profSel").value!=="TRAP";
+  $("accBox").style.opacity = $("profSel").value==="TRAP" ? "1" : "0.4";
+  try{ localStorage.setItem("auto_lego_prof", $("profSel").value); }catch(e){}
 }
 function getPidString(){
   return [Number($("kpPos").value),Number($("kiPos").value),
@@ -713,6 +722,10 @@ async function onStart(){
     await sleep(150);
     await sendCommand("VEL "+Number($("vel").value));
     await sleep(150);
+    await sendCommand("PROF "+$("profSel").value);
+    await sleep(150);
+    await sendCommand("ACC "+Number($("acc").value));
+    await sleep(150);
     await sendCommand("PATH "+path);
     // PATH dispara el streaming de PLAN. Dejamos que empiece (sleep) y esperamos
     // a que el link quede en silencio antes de seguir: mandar PI/START encima de
@@ -847,10 +860,13 @@ window.addEventListener("load",()=>{
   $("sendPathBtn").onclick=()=>{ chartXY.data.datasets[0].data.length=0; chartXY.update("none"); sendCommand("PATH "+getPathString()); };
   $("sendPiPosBtn").onclick=()=>sendCommand("PI "+getPidString());
   $("sendPiStBtn").onclick =()=>sendCommand("PI "+getPidString());
-  $("sendVelBtn").onclick  =()=>sendCommand("VEL "+Number($("vel").value));
+  $("sendVelBtn").onclick  =async()=>{ await sendCommand("VEL "+Number($("vel").value)); await sleep(150); await sendCommand("PROF "+$("profSel").value); await sleep(150); await sendCommand("ACC "+Number($("acc").value)); };
   $("sendSmcBtn").onclick  =()=>sendCommand("CTRL SMC").then(()=>sleep(150)).then(()=>sendCommand("SMC "+getSmcString()));
   $("ctrlSel").onchange=onCtrlChange;
   try{ const c=localStorage.getItem("auto_lego_ctrl"); if(c==="SMC"||c==="PI") $("ctrlSel").value=c; }catch(e){}
+  try{ const pf=localStorage.getItem("auto_lego_prof"); if(pf==="TRAP"||pf==="CONST") $("profSel").value=pf; }catch(e){}
+  $("profSel").onchange=onProfChange;
+  onProfChange();
   onCtrlChange();
   $("startBtn").onclick=onStart;
   $("stopBtn").onclick =onStop;

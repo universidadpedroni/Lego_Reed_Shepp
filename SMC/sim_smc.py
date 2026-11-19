@@ -32,6 +32,9 @@ KP_POS, KI_POS, KP_ST, KI_ST = 50.0, 0.01, 50.0, 0.01
 ANGLE_TO_CM = 0.045
 H_MS = 5                                   # periodo FIJO del lazo (LOOP_MS del firmware)
 KI_REF_MS = 2.34                           # periodo con el que se sintonizo el Ki por tick del PI
+PROFILE = 'TRAP'                           # perfil de velocidad de la referencia: 'TRAP' | 'CONST'
+ACCEL = 80.0                               # [cm/s^2] rampa del perfil TRAP
+V_MIN_REF = 2.0                            # [cm/s] piso de la rampa de frenado
 DT = H_MS / 1000.0
 
 # ---------------------------------------------------------------------------
@@ -129,6 +132,9 @@ def run(leg, ctrl, P, lat=None, spd=None, tmax=30.0, t_lead=0.0):
         ds_seg = distance / N_seg
         ref_ticks = 0
         head0 = steering_reference
+        v0_ref = VELOCITY if (iseg > 0 and leg[iseg - 1]['gear'] == gear) else 0.0
+        v1_ref = VELOCITY if (iseg + 1 < len(leg) and leg[iseg + 1]['gear'] == gear) else 0.0
+        ref_v = v0_ref; s_ref = 0.0; ref_done = False
         pos_base = pos_true                              # front/rear.reset_angle(0)
         position_reference = 0.0
         position_vehicle = 0.0
@@ -142,17 +148,31 @@ def run(leg, ctrl, P, lat=None, spd=None, tmax=30.0, t_lead=0.0):
 
         while abs(position_vehicle) <= distance and elapsed_ms / 1000.0 < tmax:
             # ---- referencia (Euler N entero, snap en el ultimo tick) ----
-            if ref_ticks < N_seg:
-                ref_ticks += 1
-                if ref_ticks < N_seg:
-                    position_reference += gear * ds_seg
-                    steering_reference += gear * steer_dir * ds_seg / R_TURN
+            if not ref_done:
+                if PROFILE == 'TRAP' and ACCEL > 0:
+                    rem = distance - s_ref
+                    ref_v = min(VELOCITY, ref_v + ACCEL * H_MS / 1000.0,
+                                math.sqrt(v1_ref * v1_ref + 2.0 * ACCEL * rem))
+                    ref_v = max(ref_v, V_MIN_REF)
+                    ds_ref = ref_v * H_MS / 1000.0
+                    last_tick = ds_ref >= rem
+                    if last_tick:
+                        ds_ref = rem
+                    s_ref += ds_ref
+                else:
+                    ref_ticks += 1
+                    ds_ref = ds_seg
+                    last_tick = ref_ticks >= N_seg
+                if not last_tick:
+                    position_reference += gear * ds_ref
+                    steering_reference += gear * steer_dir * ds_ref / R_TURN
                 else:
                     position_reference = gear * distance
                     steering_reference = head0 + gear * steer_dir * distance / R_TURN
+                    ref_done = True
                 thr = -steering_reference
-                xr += gear * ds_seg * math.cos(thr)
-                yr += gear * ds_seg * math.sin(thr)
+                xr += gear * ds_ref * math.cos(thr)
+                yr += gear * ds_ref * math.sin(thr)
             thr = -steering_reference
 
             # ---- sensores ----
