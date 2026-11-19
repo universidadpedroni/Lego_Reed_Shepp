@@ -1,6 +1,6 @@
 # Prueba en vivo del SMC en el auto (reemplaza las secciones 8 y 9.5 de SMC_diseno.md)
 
-Estado: SMC integrado en main_rs.py (VER 15) y en dashboard.html (v1.2). Verificado solo con stubs
+Estado: SMC integrado en main_rs.py (VER 15) y en dashboard.html (v1.3). Verificado solo con stubs
 (SMC/test_firmware_stub.py corre el controlDelVehiculo real contra la planta simulada; SMC/test_dashboard.js
 prueba la logica del dashboard con jsdom). NO probado todavia en el hub real.
 
@@ -28,7 +28,7 @@ Con SMC las barras de direccion muestran Eq (control equivalente) y Sw (conmutad
 - Actividad de direccion: SMC < PI.
 - Estado final "Completado" (sin stall/timeout) en los 3 ensayos.
 - Lazo a periodo FIJO LOOP_MS = 5 ms: LOOP debe dar ~5.00 con 0 overruns. Si hay overruns, avisar.
-- Velocidad real = VELOCITY (default dashboard 17 cm/s) en PI y SMC; la pendiente de la referencia debe dar ~17 cm/s.
+- Velocidad real = VELOCITY (default dashboard 40 cm/s) en PI y SMC; la pendiente de la referencia debe dar ~VELOCITY.
 - El Ki del PI se reescala por LOOP_MS/2.34 (periodo con que se sintonizo), asi el PI se comporta como antes.
 Si el SMC oscila (comando de direccion agitado): subir phi (0.08-0.10). Si queda sesgado a un lado en arcos: calibrar psi.
 

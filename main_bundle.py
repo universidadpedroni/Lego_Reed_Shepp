@@ -1,5 +1,5 @@
 # ============================================================================
-# main_bundle.py - GENERADO por SMC/make_bundle.py (2026-11-19 21:04). NO EDITAR A MANO:
+# main_bundle.py - GENERADO por SMC/make_bundle.py (2026-11-19 21:07). NO EDITAR A MANO:
 # editar los .py originales y volver a correr el script.
 # ============================================================================
 import umath
@@ -983,7 +983,7 @@ ANGLE_TO_CM = 0.045
 # el auto andaba a ~1/3.5 de VELOCITY. Ahora el lazo espera lo que falta hasta LOOP_MS.
 # Condiciones: dividir a 100 (telemetria cada 100 ms) y ser mayor que el tiempo de calculo
 # del lazo (la linea LOOP informa el periodo medio y los desbordes; desbordes > 0 => subir).
-LOOP_MS = 10
+LOOP_MS = 5
 # Periodo real [ms] con el que se sintonizo el PI (medido con el lazo libre: 2.34 ms). Los Ki
 # estan definidos POR TICK a ese periodo; se reescalan por LOOP_MS/KI_REF_MS para que el
 # efecto por segundo del PI no cambie al fijar el periodo.
@@ -1423,8 +1423,12 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=LOOP_MS):
             if rem > 0:
                 wait(rem)
             elif rem < 0:
+                # Tick pasado de tiempo: se cuenta y NO se resincroniza; los ticks siguientes
+                # lo recuperan sin esperar, asi el periodo MEDIO queda en h (y la velocidad
+                # real = VELOCITY). Solo si el atraso supera 4*h se resincroniza de golpe.
                 overruns += 1
-                next_tick = run_watch.time()
+                if rem < -4 * h:
+                    next_tick = run_watch.time()
             elapsed_time += h
             loop_ticks += 1
 

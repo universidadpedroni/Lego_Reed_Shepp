@@ -30,7 +30,7 @@ R_TURN = 80.0
 VELOCITY = 17.0                            # [cm/s] velocidad REAL (el PI corria a ~17 con lazo libre de 2.34 ms)
 KP_POS, KI_POS, KP_ST, KI_ST = 50.0, 0.01, 50.0, 0.01
 ANGLE_TO_CM = 0.045
-H_MS = 10                                   # periodo FIJO del lazo (LOOP_MS del firmware)
+H_MS = 5                                   # periodo FIJO del lazo (LOOP_MS del firmware)
 KI_REF_MS = 2.34                           # periodo con el que se sintonizo el Ki por tick del PI
 DT = H_MS / 1000.0
 
