@@ -276,6 +276,11 @@ def run_trajectory(PATH):
 # ----------------------------------------------------------------------------
 # Bucle principal: escucha comandos del dashboard
 # ----------------------------------------------------------------------------
+# Comandos que solo cambian un parametro: prefijo -> funcion de settings.py que lo valida.
+SETTERS = {'PI': set_gains, 'PROF': set_profile, 'ACC': set_accel, 'VEL': set_velocity,
+           'ALG': set_algorithm, 'CTRL': set_controller, 'SMC': set_smc}
+
+
 def main():
     setup()
     PATH = None
@@ -291,92 +296,55 @@ def main():
         if line == "":
             continue
 
-        if line.startswith("PATH "):
-            poses = parse_path(line[5:])
+        p = line.split(" ", 1)
+        cmd = p[0]
+        arg = p[1] if len(p) > 1 else ""
+
+        if cmd == "PATH":
+            poses = parse_path(arg)
             if poses and len(poses) >= 2:
                 PATH = poses
                 cfg.legs, cfg.legs_total = build_legs(PATH)
                 if cfg.legs is None:
-                    print("ERR sin solucion {}".format(cfg.algorithm))
+                    print("ERR sin solucion")
                 else:
                     print("ACK PATH {}".format(len(PATH)))
                     send_plan(cfg.legs, PATH)
             else:
                 PATH = None
                 cfg.legs = None
-                print("ERR PATH invalido (minimo 2 poses x,y,h)")
+                print("ERR PATH")
 
-        elif line.startswith("PI "):
-            if set_gains(line[3:]):
-                print("ACK PI {},{},{},{}".format(
-                    cfg.gains['kp_pos'], cfg.gains['ki_pos'], cfg.gains['kp_st'], cfg.gains['ki_st']))
-            else:
-                print("ERR PI invalido (4 numeros)")
+        elif cmd in SETTERS:
+            # El hub devuelve el comando recibido: ACK <comando> o ERR <comando>.
+            print(("ACK " if SETTERS[cmd](arg) else "ERR ") + line)
 
-        elif line.startswith("PROF "):
-            if set_profile(line[5:]):
-                print("ACK PROF {}".format(cfg.profile))
-            else:
-                print("ERR PROF invalido (CONST o TRAP)")
-
-        elif line.startswith("ACC "):
-            if set_accel(line[4:]):
-                print("ACK ACC {}".format(cfg.accel))
-            else:
-                print("ERR ACC invalido (1 numero >= 0)")
-
-        elif line.startswith("VEL "):
-            if set_velocity(line[4:]):
-                print("ACK VEL {}".format(cfg.velocity))
-            else:
-                print("ERR VEL invalido (1 numero > 0)")
-
-        elif line.startswith("ALG "):
-            if set_algorithm(line[4:]):
-                print("ACK ALG {}".format(cfg.algorithm))
-            else:
-                print("ERR ALG invalido (RS o DUBINS)")
-
-        elif line.startswith("CTRL "):
-            if set_controller(line[5:]):
-                print("ACK CTRL {}".format(cfg.controller))
-            else:
-                print("ERR CTRL invalido (PI o SMC)")
-
-        elif line.startswith("SMC "):
-            if set_smc(line[4:]):
-                print("ACK SMC {},{},{},{},{},{}".format(
-                    cfg.smc['lam'], cfg.smc['eta'], cfg.smc['phi'],
-                    cfg.smc['ki'], cfg.smc['tlead'], cfg.smc['psi']))
-            else:
-                print("ERR SMC invalido (lam,eta,phi,ki,tlead,psi; todos > 0 salvo ki y tlead >= 0; psi 5..35)")
-
-        elif line == "START":
+        elif cmd == "START":
             if not PATH:
-                print("ERR sin PATH cargado")
+                print("ERR sin PATH")
             else:
-                print("ACK START {}".format(cfg.algorithm))
+                print("ACK START")
                 run_trajectory(PATH)
                 send_battery()
                 print("RDY")
 
-        elif line == "STOP":
+        elif cmd == "STOP":
             stop_car()
             print("ACK STOP")
 
-        elif line == "RESET":
+        elif cmd == "RESET":
             reset_sensors()
             send_battery()
             print("ACK RESET")
 
-        elif line == "BAT":
+        elif cmd == "BAT":
             send_battery()
 
-        elif line == "PING":
+        elif cmd == "PING":
             print("RDY")
 
         else:
-            print("ERR comando desconocido: " + line)
+            print("ERR " + line)
 
 
 if __name__ == "__main__":

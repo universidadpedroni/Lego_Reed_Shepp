@@ -22,6 +22,14 @@ ORDER = ['vehicleConstants', 'controlConstants', 'reeds_shepp', 'dubinsPathPlann
          'hardware', 'comms', 'trajectory', 'controllers', 'main_rs']
 LOCAL = set(ORDER)
 
+# Definiciones que el firmware del hub NUNCA usa: se omiten del bundle para ahorrar tamano
+# (el hub limita el programa compilado a ~16 KB). Siguen en los .py originales: las usan los
+# tests y los simuladores en la PC.
+DROP_IN_BUNDLE = {
+    'reeds_shepp': {'get_all_paths', 'get_optimal_path'},
+    'smc_control': {'SpeedSMC'},
+}
+
 
 def strip_comments_and_docstrings(text):
     """Reduce el tamano del bundle (el hub compila el archivo en RAM): quita los
@@ -85,6 +93,10 @@ def build():
             elif (isinstance(node, ast.If) and isinstance(node.test, ast.Compare)
                   and getattr(node.test.left, 'id', '') == '__name__' and mod != 'main_rs'):
                 drop.update(rng)
+            elif isinstance(node, (ast.FunctionDef, ast.ClassDef)) and node.name in DROP_IN_BUNDLE.get(mod, ()):
+                # incluye decoradores: se omite la definicion completa
+                start = node.lineno - 1 - len(getattr(node, 'decorator_list', []))
+                drop.update(range(start, node.end_lineno))
             elif isinstance(node, ast.FunctionDef) and node.name == 'run_test' and mod != 'main_rs':
                 # incluye decoradores/comentarios pegados: solo el cuerpo de la funcion
                 drop.update(rng)
@@ -95,7 +107,10 @@ def build():
             '# main_bundle.py - GENERADO por SMC/make_bundle.py ({}). NO EDITAR A MANO:\n'
             '# editar los .py originales y volver a correr el script.\n'
             '# ' + '=' * 76 + '\n').format(time.strftime('%Y-%m-%d %H:%M'))
-    return head + '\n'.join(hoisted) + '\n\n\n' + '\n\n\n'.join(bodies) + '\n'
+    text = '\n'.join(hoisted) + '\n\n\n' + '\n\n\n'.join(bodies) + '\n'
+    # Menos lineas fisicas = menos bytes en el .mpy (el hub limita el programa a 16164 bytes).
+    from minline import minimize_lines
+    return head + minimize_lines(text)
 
 
 if __name__ == '__main__':
@@ -105,3 +120,12 @@ if __name__ == '__main__':
     with open(dest, 'w', encoding='utf-8', newline='\n') as f:
         f.write(out)
     print('OK -> {} ({} lineas, {} bytes)'.format(dest, out.count('\n'), len(out.encode('utf-8'))))
+    try:       # si esta instalado mpy-cross-v6 (el compilador de Pybricks), informa el tamano real
+        import subprocess, tempfile
+        import mpy_cross_v6 as X
+        d = tempfile.mkdtemp(); mpy = os.path.join(d, 'p.mpy')
+        subprocess.run([str(X.MPY_CROSS_PATH), '-o', mpy, dest], check=True, capture_output=True)
+        size = os.path.getsize(mpy)
+        print('tamano compilado (.mpy): {} bytes, limite del hub 16164 ({})'.format(size, 'OK' if size <= 16164 else 'EXCEDE'))
+    except Exception as e:
+        print('(tamano .mpy no medido: {})'.format(type(e).__name__))
