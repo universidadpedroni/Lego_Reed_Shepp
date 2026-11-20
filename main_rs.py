@@ -25,9 +25,6 @@
 #   VEL v                          velocidad lineal de referencia [cm/s]
 #   PROF CONST|TRAP                perfil de velocidad de la referencia (default TRAP)
 #   ACC a                          aceleracion/frenado del perfil TRAP [cm/s^2]
-#   ALG RS|DUBINS                   elige el planner (default RS)
-#   CTRL PI|SMC                     controlador de DIRECCION (default PI)
-#   SMC lam,eta,phi,ki,tlead,psi    parametros del SMC (ver smc_control.py)
 #   START                          calcula la trayectoria y arranca el ensayo
 #   STOP                           frena el auto de inmediato
 #   RESET                          pone los sensores (IMU + encoders) a 0
@@ -51,8 +48,7 @@
 #   sv rumbo real [grados]   se error rumbo [grados]       sc comando direccion
 #   x  posicion X global [cm]   y posicion Y global [cm]
 #   pP/pI accion traccion P e I    sP/sI accion direccion P e I (con gear)
-#   ey error lateral [cm] (odometria, marco de la referencia)   ss variable de deslizamiento s [rad]
-#   Con CTRL SMC: sP = control equivalente, sI = termino conmutado (+integral), ambos en % y con signo de sc.
+#   ey error lateral [cm] (odometria, marco de la referencia)   ss reservado (siempre 0)
 #   pc=clamp(pP+pI), sc=gear*clamp(sP+sI). Si pP+pI o sP+sI exceden el
 #   limite, pc/sc saturan pero pP,pI,sP,sI siguen: asi se ve el windup.
 # =============================================================================
@@ -60,7 +56,7 @@
 # =============================================================================
 # NOTA SOBRE CONVENCION DE SIGNO DEL RUMBO PARA LA VISUALIZACION
 # =============================================================================
-# El planner (reeds_shepp / dubinsPathPlanning) usa LEFT=-1 y el IMU del hub
+# El planner (reeds_shepp) usa LEFT=-1 y el IMU del hub
 # trabaja en la misma convencion ("compass": CW positivo). El lazo de control
 # funciona perfecto porque ambos coinciden.
 #
@@ -79,12 +75,11 @@
 # MAPA DE MODULOS (cada archivo hace UNA cosa; main_rs.py solo los orquesta)
 # =============================================================================
 #   settings.py          parametros ajustables (cfg) y parsers de los comandos del dashboard
-#   trajectory.py        generacion de trayectoria: planner RS/Dubins, tramos, PLAN al dashboard
+#   trajectory.py        generacion de trayectoria: planner Reeds-Shepp, tramos, PLAN al dashboard
 #   velocity_profile.py  rampas: perfil de velocidad constante o trapezoidal de la referencia
 #   reference.py         la referencia: arco, rumbo y pose que el auto debe perseguir
 #   odometry.py          donde esta el auto (x, y) y errores e_s / e_y respecto de la referencia
-#   controllers.py       lazos de control: PI de traccion, PI de direccion, SMC de direccion
-#   smc_control.py       la matematica del modo deslizante (LateralSMC)
+#   controllers.py       lazos de control: PI de traccion y PI de direccion
 #   hardware.py          hub, motores, IMU, encoders, bateria
 #   comms.py             entrada de comandos (stdin) y salida de telemetria (print)
 #   main_rs.py           lazo principal a periodo fijo + dispatcher de comandos (este archivo)
@@ -101,9 +96,7 @@ import umath
 from pybricks.parameters import Color
 from pybricks.tools import wait
 
-from vehicleConstants import r_turn_min
-from settings import (cfg, LOOP_MS, parse_path, set_gains, set_velocity, set_profile,
-                      set_accel, set_algorithm, set_controller, set_smc)
+from settings import cfg, LOOP_MS, parse_path, set_gains, set_velocity, set_profile, set_accel
 from hardware import (audi, hub, run_watch, setup, stop_car, reset_sensors, reset_encoders,
                       read_position, read_heading, motors_stalled)
 from comms import read_command, send_battery, send_telemetry
@@ -111,7 +104,7 @@ from trajectory import build_legs, send_plan
 from velocity_profile import make_profile
 from reference import Reference
 from odometry import Odometry, make_frame
-from controllers import make_position_controller, make_steering_controller, curvature_preview
+from controllers import make_position_controller, make_steering_controller
 
 
 # ----------------------------------------------------------------------------
@@ -135,7 +128,7 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=LOOP_MS):
     ref = Reference()                                   # referencia (arco, rumbo, x, y)
     odo = Odometry()                                    # odometria del auto
     pos_ctrl = make_position_controller(h)               # traccion (PI)
-    steer_ctrl = make_steering_controller(cfg.controller)   # direccion: PI o SMC
+    steer_ctrl = make_steering_controller(h)             # direccion (PI)
     to_global = make_frame(leg_start)                   # marco global, para el dashboard
 
     # Lazo a periodo fijo: next_tick es el instante en que debe arrancar el proximo tick.
@@ -164,7 +157,6 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=LOOP_MS):
         position_vehicle = 0.0
         pos_ctrl.reset()
         steer_ctrl.reset()
-        kappa_ref = -steer_dir / r_turn_min      # curvatura de la referencia (+ = izquierda)
 
         while abs(position_vehicle) <= distance and (elapsed_time / 1000.0) < elapsed_time_max:
             # STOP de emergencia desde el dashboard
@@ -187,14 +179,12 @@ def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=LOOP_MS):
             # 3. Errores
             position_error = ref.position - position_vehicle
             steering_error = umath.degrees(ref.heading) - steering_vehicle
-            ds = odo.update(position_vehicle, steering_vehicle)
+            odo.update(position_vehicle, steering_vehicle)
             e_s, e_y = odo.tracking_errors(ref)
 
-            # 4. Control: traccion (PI de posicion) y direccion (PI o SMC)
+            # 4. Control: traccion (PI de posicion) y direccion (PI de rumbo)
             position_command, position_P, position_I = pos_ctrl.update(position_error)
-            k_lead = curvature_preview(nxt, gear, distance, abs(position_vehicle), kappa_ref)
-            steering_command, steering_P, steering_I = steer_ctrl.update(
-                gear, steering_error, e_y, e_s, ds, kappa_ref, k_lead)
+            steering_command, steering_P, steering_I = steer_ctrl.update(gear, steering_error)
 
             # 5. Motores
             audi.steer(steering_command)
@@ -249,7 +239,7 @@ def run_trajectory(PATH):
     if cfg.legs is None:
         cfg.legs, cfg.legs_total = build_legs(PATH)
         if cfg.legs is None:
-            print("ERR sin solucion {}".format(cfg.algorithm))
+            print("ERR sin solucion")
             print("END error")
             hub.light.on(Color.RED)
             return
@@ -277,15 +267,14 @@ def run_trajectory(PATH):
 # Bucle principal: escucha comandos del dashboard
 # ----------------------------------------------------------------------------
 # Comandos que solo cambian un parametro: prefijo -> funcion de settings.py que lo valida.
-SETTERS = {'PI': set_gains, 'PROF': set_profile, 'ACC': set_accel, 'VEL': set_velocity,
-           'ALG': set_algorithm, 'CTRL': set_controller, 'SMC': set_smc}
+SETTERS = {'PI': set_gains, 'PROF': set_profile, 'ACC': set_accel, 'VEL': set_velocity}
 
 
 def main():
     setup()
     PATH = None
     print("RDY")
-    print("VER 16 modular")
+    print("VER 17 RS+PI")
     send_battery()
 
     while True:

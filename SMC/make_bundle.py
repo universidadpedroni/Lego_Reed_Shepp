@@ -17,8 +17,8 @@ import ast, os, sys, time
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 # Orden de dependencias: cada modulo despues de los que importa.
-ORDER = ['vehicleConstants', 'controlConstants', 'reeds_shepp', 'dubinsPathPlanning',
-         'smc_control', 'settings', 'velocity_profile', 'reference', 'odometry',
+ORDER = ['vehicleConstants', 'controlConstants', 'reeds_shepp',
+         'settings', 'velocity_profile', 'reference', 'odometry',
          'hardware', 'comms', 'trajectory', 'controllers', 'main_rs']
 LOCAL = set(ORDER)
 
@@ -27,7 +27,6 @@ LOCAL = set(ORDER)
 # tests y los simuladores en la PC.
 DROP_IN_BUNDLE = {
     'reeds_shepp': {'get_all_paths', 'get_optimal_path'},
-    'smc_control': {'SpeedSMC'},
 }
 
 

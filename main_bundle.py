@@ -1,5 +1,5 @@
 # ============================================================================
-# main_bundle.py - GENERADO por SMC/make_bundle.py (2026-11-20 11:25). NO EDITAR A MANO:
+# main_bundle.py - GENERADO por SMC/make_bundle.py (2026-11-20 17:45). NO EDITAR A MANO:
 # editar los .py originales y volver a correr el script.
 # ============================================================================
 import umath
@@ -120,110 +120,11 @@ def get_best_path(start_point, end_point):
             if best is None or d < best_len: best_len = d; best = v
         gc.collect()
     return best
-def _arc_signed(theta_arc, turn_dir):
-
-    if turn_dir == 'L' and theta_arc < 0.0: theta_arc += 2.0 * umath.pi
-    elif turn_dir == 'R' and theta_arc > 0.0: theta_arc -= 2.0 * umath.pi
-    return theta_arc
-def _tangents_CSC(c1, c2, r, path_type):
-
-    (x1, y1) = c1; (x2, y2) = c2; dx = x2 - x1; dy = y2 - y1; d_sq = dx * dx + dy * dy
-    if d_sq < 1e-12: return []
-    d = umath.sqrt(d_sq); vx = dx / d; vy = dy / d; tangents = []
-    for sign1 in (+1, -1):
-        c = (r - sign1 * r) / d
-        if c * c > 1: continue
-        h = umath.sqrt(max(0.0, 1 - c * c))
-        for sign2 in (+1, -1): nx = vx * c - sign2 * h * vy; ny = vy * c + sign2 * h * vx; tangents.append([x1 + r * nx, y1 + r * ny, x2 + sign1 * r * nx, y2 + sign1 * r * ny])
-    idx = {'RSR': 0, 'LSL': 1, 'RSL': 2, 'LSR': 3}.get(path_type, -1)
-    if idx < 0 or idx >= len(tangents): return []
-    return tangents[idx]
-def dubin_RSR(s, g, r):
-
-    pt = 'RSR'; c1 = (s[0] + r * umath.cos(s[2] - umath.pi / 2), s[1] + r * umath.sin(s[2] - umath.pi / 2)); c2 = (g[0] + r * umath.cos(g[2] - umath.pi / 2), g[1] + r * umath.sin(g[2] - umath.pi / 2)); D = umath.sqrt((c2[0] - c1[0]) ** 2 + (c2[1] - c1[1]) ** 2)
-    if D < 2 * r: return (None, pt)
-    t = _tangents_CSC(c1, c2, r, pt)
-    if not t: return (None, pt)
-    a1 = _arc_signed(umath.atan2(t[1] - c1[1], t[0] - c1[0]) - umath.atan2(s[1] - c1[1], s[0] - c1[0]), 'R'); L0 = r * abs(a1); L1 = umath.sqrt((t[2] - t[0]) ** 2 + (t[3] - t[1]) ** 2); a3 = _arc_signed(umath.atan2(g[1] - c2[1], g[0] - c2[0]) - umath.atan2(t[3] - c2[1], t[2] - c2[0]), 'R'); L2 = r * abs(a3); return ([L0, L1, L2], pt)
-def dubin_LSL(s, g, r):
-
-    pt = 'LSL'; c1 = (s[0] + r * umath.cos(s[2] + umath.pi / 2), s[1] + r * umath.sin(s[2] + umath.pi / 2)); c2 = (g[0] + r * umath.cos(g[2] + umath.pi / 2), g[1] + r * umath.sin(g[2] + umath.pi / 2)); D = umath.sqrt((c2[0] - c1[0]) ** 2 + (c2[1] - c1[1]) ** 2)
-    if D < 2 * r: return (None, pt)
-    t = _tangents_CSC(c1, c2, r, pt)
-    if not t: return (None, pt)
-    a1 = _arc_signed(umath.atan2(t[1] - c1[1], t[0] - c1[0]) - umath.atan2(s[1] - c1[1], s[0] - c1[0]), 'L'); L0 = r * abs(a1); L1 = umath.sqrt((t[2] - t[0]) ** 2 + (t[3] - t[1]) ** 2); a3 = _arc_signed(umath.atan2(g[1] - c2[1], g[0] - c2[0]) - umath.atan2(t[3] - c2[1], t[2] - c2[0]), 'L'); L2 = r * abs(a3); return ([L0, L1, L2], pt)
-def dubin_LSR(s, g, r):
-
-    pt = 'LSR'; c1 = (s[0] + r * umath.cos(s[2] + umath.pi / 2), s[1] + r * umath.sin(s[2] + umath.pi / 2)); c2 = (g[0] + r * umath.cos(g[2] - umath.pi / 2), g[1] + r * umath.sin(g[2] - umath.pi / 2)); D = umath.sqrt((c2[0] - c1[0]) ** 2 + (c2[1] - c1[1]) ** 2)
-    if D < 2 * r: return (None, pt)
-    t = _tangents_CSC(c1, c2, r, pt)
-    if not t: return (None, pt)
-    a1 = _arc_signed(umath.atan2(t[1] - c1[1], t[0] - c1[0]) - umath.atan2(s[1] - c1[1], s[0] - c1[0]), 'L'); L0 = r * abs(a1); L1 = umath.sqrt((t[2] - t[0]) ** 2 + (t[3] - t[1]) ** 2); a3 = _arc_signed(umath.atan2(g[1] - c2[1], g[0] - c2[0]) - umath.atan2(t[3] - c2[1], t[2] - c2[0]), 'R'); L2 = r * abs(a3); return ([L0, L1, L2], pt)
-def dubin_RSL(s, g, r):
-
-    pt = 'RSL'; c1 = (s[0] + r * umath.cos(s[2] - umath.pi / 2), s[1] + r * umath.sin(s[2] - umath.pi / 2)); c2 = (g[0] + r * umath.cos(g[2] + umath.pi / 2), g[1] + r * umath.sin(g[2] + umath.pi / 2)); D = umath.sqrt((c2[0] - c1[0]) ** 2 + (c2[1] - c1[1]) ** 2)
-    if D < 2 * r: return (None, pt)
-    t = _tangents_CSC(c1, c2, r, pt)
-    if not t: return (None, pt)
-    a1 = _arc_signed(umath.atan2(t[1] - c1[1], t[0] - c1[0]) - umath.atan2(s[1] - c1[1], s[0] - c1[0]), 'R'); L0 = r * abs(a1); L1 = umath.sqrt((t[2] - t[0]) ** 2 + (t[3] - t[1]) ** 2); a3 = _arc_signed(umath.atan2(g[1] - c2[1], g[0] - c2[0]) - umath.atan2(t[3] - c2[1], t[2] - c2[0]), 'L'); L2 = r * abs(a3); return ([L0, L1, L2], pt)
-def dubin_RLR(s, g, r):
-
-    pt = 'RLR'; c1 = (s[0] + r * umath.cos(s[2] - umath.pi / 2), s[1] + r * umath.sin(s[2] - umath.pi / 2)); c2 = (g[0] + r * umath.cos(g[2] - umath.pi / 2), g[1] + r * umath.sin(g[2] - umath.pi / 2)); D = umath.sqrt((c2[0] - c1[0]) ** 2 + (c2[1] - c1[1]) ** 2)
-    if D > 4 * r * 0.95: return (None, pt)
-    alpha = umath.atan2(c2[1] - c1[1], c2[0] - c1[0]); beta = umath.acos(D / (4 * r)); theta = alpha - beta; c3 = (c1[0] + 2 * r * umath.cos(theta), c1[1] + 2 * r * umath.sin(theta)); norm1 = umath.sqrt((c1[0] - c3[0]) ** 2 + (c1[1] - c3[1]) ** 2); norm2 = umath.sqrt((c2[0] - c3[0]) ** 2 + (c2[1] - c3[1]) ** 2); pt1 = (c3[0] + r * (c1[0] - c3[0]) / norm1, c3[1] + r * (c1[1] - c3[1]) / norm1); pt2 = (c3[0] + r * (c2[0] - c3[0]) / norm2, c3[1] + r * (c2[1] - c3[1]) / norm2); a1 = _arc_signed(umath.atan2(pt1[1] - c1[1], pt1[0] - c1[0]) - umath.atan2(s[1] - c1[1], s[0] - c1[0]), 'R'); a2 = _arc_signed(umath.atan2(pt2[1] - c3[1], pt2[0] - c3[0]) - umath.atan2(pt1[1] - c3[1], pt1[0] - c3[0]), 'L'); a3 = _arc_signed(umath.atan2(g[1] - c2[1], g[0] - c2[0]) - umath.atan2(pt2[1] - c2[1], pt2[0] - c2[0]), 'R'); return ([r * abs(a1), r * abs(a2), r * abs(a3)], pt)
-def dubin_LRL(s, g, r):
-
-    pt = 'LRL'; c1 = (s[0] + r * umath.cos(s[2] + umath.pi / 2), s[1] + r * umath.sin(s[2] + umath.pi / 2)); c2 = (g[0] + r * umath.cos(g[2] + umath.pi / 2), g[1] + r * umath.sin(g[2] + umath.pi / 2)); D = umath.sqrt((c2[0] - c1[0]) ** 2 + (c2[1] - c1[1]) ** 2)
-    if D > 4 * r * 0.95: return (None, pt)
-    alpha = umath.atan2(c2[1] - c1[1], c2[0] - c1[0]); beta = umath.acos(D / (4 * r)); theta = alpha + beta; c3 = (c1[0] + 2 * r * umath.cos(theta), c1[1] + 2 * r * umath.sin(theta)); norm1 = umath.sqrt((c1[0] - c3[0]) ** 2 + (c1[1] - c3[1]) ** 2); norm2 = umath.sqrt((c2[0] - c3[0]) ** 2 + (c2[1] - c3[1]) ** 2); pt1 = (c3[0] + r * (c1[0] - c3[0]) / norm1, c3[1] + r * (c1[1] - c3[1]) / norm1); pt2 = (c3[0] + r * (c2[0] - c3[0]) / norm2, c3[1] + r * (c2[1] - c3[1]) / norm2); a1 = _arc_signed(umath.atan2(pt1[1] - c1[1], pt1[0] - c1[0]) - umath.atan2(s[1] - c1[1], s[0] - c1[0]), 'L'); a2 = _arc_signed(umath.atan2(pt2[1] - c3[1], pt2[0] - c3[0]) - umath.atan2(pt1[1] - c3[1], pt1[0] - c3[0]), 'R'); a3 = _arc_signed(umath.atan2(g[1] - c2[1], g[0] - c2[0]) - umath.atan2(pt2[1] - c2[1], pt2[0] - c2[0]), 'L'); return ([r * abs(a1), r * abs(a2), r * abs(a3)], pt)
-def get_best_dubins(start_pose, end_pose, r_turn_min):
-
-    s = (start_pose[0], start_pose[1], umath.radians(start_pose[2])); g = (end_pose[0], end_pose[1], umath.radians(end_pose[2])); variant_fns = (dubin_RSR, dubin_LSL, dubin_LSR, dubin_RSL, dubin_RLR, dubin_LRL); steer_map = {'L': LEFT, 'R': RIGHT, 'S': STRAIGHT}; best = None; best_len = 0.0
-    for fn in variant_fns:
-        (L, path_type) = fn(s, g, r_turn_min)
-        if L is None: gc.collect(); continue
-        d_total = L[0] + L[1] + L[2]
-        if best is None or d_total < best_len: best_len = d_total; best = [{'distance': L[i], 'steering': steer_map[path_type[i]], 'gear': FORWARD} for i in range(3)]
-        gc.collect()
-    return best
-try:
-    import umath as _m
-except ImportError:
-    import math as _m
-def sat(x):
-
-    if x > 1.0: return 1.0
-    if x < -1.0: return -1.0
-    return x
-def wrap_pi(a):
-
-    while a >= _m.pi: a -= 2.0 * _m.pi
-    while a < -_m.pi: a += 2.0 * _m.pi
-    return a
-class LateralSMC:
-
-    def __init__(self, L, delta_max_deg, lam, eta, phi, ki=0.0):
-     self.L = L; self.delta_max = _m.radians(delta_max_deg); self.lam = lam; self.eta = eta; self.phi = phi; self.ki = ki; self.z = 0.0; self.s = 0.0; self.pct_eq = 0.0; self.pct_sw = 0.0
-    def reset(self):
-     self.z = 0.0; self.s = 0.0; self.pct_eq = 0.0; self.pct_sw = 0.0
-    def update(self, gear, e_theta, e_y, e_s, kappa_ref, ds_abs, kappa_ff=None):
-    
-        g = 1.0 if gear >= 0 else -1.0; e_g = wrap_pi(e_theta - kappa_ref * e_s); s = e_g + self.lam * g * e_y
-        if kappa_ff is None: kappa_ff = kappa_ref
-        k_eq = kappa_ff * _m.cos(e_g) / (1.0 - kappa_ref * e_y) - g * self.lam * _m.sin(e_g); sw = self.eta * sat(s / self.phi)
-        if self.ki > 0.0 and abs(s) < self.phi:
-            self.z += s * ds_abs; z_max = 0.5 * self.eta / self.ki
-            if self.z > z_max: self.z = z_max
-            elif self.z < -z_max: self.z = -z_max
-        k_cmd = k_eq - g * (sw + self.ki * self.z); delta = _m.atan(self.L * k_cmd); pct = 100.0 * delta / self.delta_max
-        if pct > 100.0: pct = 100.0
-        elif pct < -100.0: pct = -100.0
-        self.s = s; self.pct_eq = 100.0 * _m.atan(self.L * k_eq) / self.delta_max; self.pct_sw = pct - self.pct_eq; return pct
 LOOP_MS = 5; KI_REF_MS = 2.34
 class Settings:
 
     def __init__(self):
-     self.velocity = v; self.profile = 'TRAP'; self.accel = 80.0; self.algorithm = 'RS'; self.controller = 'PI'; self.gains = {'kp_pos': KP_POSITION, 'ki_pos': KI_POSITION, 'kp_st': KP_STEERING, 'ki_st': KI_STEERING}; self.smc = {'lam': 0.035, 'eta': 0.008, 'phi': 0.05, 'ki': 0.0, 'tlead': 0.2, 'psi': psi_max}; self.legs = None; self.legs_total = 0
+     self.velocity = v; self.profile = 'TRAP'; self.accel = 80.0; self.gains = {'kp_pos': KP_POSITION, 'ki_pos': KI_POSITION, 'kp_st': KP_STEERING, 'ki_st': KI_STEERING}; self.legs = None; self.legs_total = 0
 cfg = Settings()
 def parse_path(arg):
 
@@ -260,24 +161,6 @@ def set_accel(arg):
     except: return False
     if val < 0: return False
     cfg.accel = val; return True
-def set_algorithm(arg):
-
-    arg = arg.strip().upper()
-    if arg not in ('RS', 'DUBINS'): return False
-    cfg.algorithm = arg; cfg.legs = None; return True
-def set_controller(arg):
-
-    arg = arg.strip().upper()
-    if arg not in ('PI', 'SMC'): return False
-    cfg.controller = arg; return True
-def set_smc(arg):
-
-    parts = arg.split(',')
-    if len(parts) != 6: return False
-    try: lam = float(parts[0]); eta = float(parts[1]); phi = float(parts[2]); ki = float(parts[3]); tlead = float(parts[4]); psi = float(parts[5])
-    except: return False
-    if lam <= 0 or eta <= 0 or phi <= 0 or (ki < 0) or (tlead < 0) or (psi < 5) or (psi > 35): return False
-    cfg.smc['lam'] = lam; cfg.smc['eta'] = eta; cfg.smc['phi'] = phi; cfg.smc['ki'] = ki; cfg.smc['tlead'] = tlead; cfg.smc['psi'] = psi; return True
 V_MIN_REF = 2.0
 class ConstantProfile:
 
@@ -372,7 +255,6 @@ def send_telemetry(t, pos_ref, pos_veh, pos_err, pos_cmd, st_ref_deg, st_veh, st
 MIN_SEG_DISTANCE = 1.0
 def plan_leg(start_pose, end_pose):
 
-    if cfg.algorithm == 'DUBINS': return get_best_dubins(start_pose, end_pose, r_turn_min)
     (sp, ep) = normalize_start_and_end_point(start_pose, end_pose, r_turn_min); best = get_best_path(sp, ep)
     if best is None: return None
     return denormalize_distance_in_path(best, r_turn_min)
@@ -423,33 +305,19 @@ class SteeringPI:
      self.pi = PI('kp_st', 'ki_st', max_angle_power, h); self.s = 0.0
     def reset(self):
      self.pi.reset()
-    def update(self, gear, steering_error, *unused):
+    def update(self, gear, steering_error):
      (command, p, i) = self.pi.update(steering_error); return (gear * command, p, i)
-class SteeringSMC:
-
-    def __init__(self, *unused):
-     sm = cfg.smc; self.smc = LateralSMC(L_car, sm['psi'], sm['lam'], sm['eta'], sm['phi'], sm['ki']); self.s = 0.0
-    def reset(self):
-     self.smc.reset()
-    def update(self, gear, steering_error, e_y, e_s, ds, kappa_ref, k_lead):
-     pct = self.smc.update(gear, umath.radians(steering_error), e_y, e_s, kappa_ref, abs(ds), k_lead); self.s = self.smc.s; command = saturate(-pct, max_angle_power); return (command, -gear * self.smc.pct_eq, -gear * self.smc.pct_sw)
-def curvature_preview(nxt, gear, distance, travelled, kappa_ref):
-
-    if nxt is not None and nxt['gear'] == gear and (distance - travelled < cfg.velocity * cfg.smc['tlead']): return -nxt['steering'] / r_turn_min
-    return kappa_ref
-def make_steering_controller(kind):
-
-    if kind == 'SMC': return SteeringSMC()
-    return SteeringPI()
+def make_steering_controller(h=LOOP_MS):
+ return SteeringPI(h)
 def controlDelVehiculo(path, leg_start, seg_offset, seg_total, h=LOOP_MS):
 
-    elapsed_time_max = 30; elapsed_time = 0; reset_sensors(); ref = Reference(); odo = Odometry(); pos_ctrl = make_position_controller(h); steer_ctrl = make_steering_controller(cfg.controller); to_global = make_frame(leg_start); loop_ticks = 0; overruns = 0; loop_t0 = run_watch.time(); next_tick = loop_t0
+    elapsed_time_max = 30; elapsed_time = 0; reset_sensors(); ref = Reference(); odo = Odometry(); pos_ctrl = make_position_controller(h); steer_ctrl = make_steering_controller(h); to_global = make_frame(leg_start); loop_ticks = 0; overruns = 0; loop_t0 = run_watch.time(); next_tick = loop_t0
     for i in range(len(path)):
-        print('SEG {} {}'.format(seg_offset + i + 1, seg_total)); distance = path[i]['distance']; steer_dir = path[i]['steering']; gear = path[i]['gear']; prev_gear = path[i - 1]['gear'] if i > 0 else None; nxt = path[i + 1] if i + 1 < len(path) else None; next_gear = nxt['gear'] if nxt is not None else None; profile = make_profile(cfg.profile, distance, gear, prev_gear, next_gear, cfg.velocity, cfg.accel, h); ref.start_segment(distance, steer_dir, gear, profile); reset_encoders(); odo.reset_segment(); position_vehicle = 0.0; pos_ctrl.reset(); steer_ctrl.reset(); kappa_ref = -steer_dir / r_turn_min
+        print('SEG {} {}'.format(seg_offset + i + 1, seg_total)); distance = path[i]['distance']; steer_dir = path[i]['steering']; gear = path[i]['gear']; prev_gear = path[i - 1]['gear'] if i > 0 else None; nxt = path[i + 1] if i + 1 < len(path) else None; next_gear = nxt['gear'] if nxt is not None else None; profile = make_profile(cfg.profile, distance, gear, prev_gear, next_gear, cfg.velocity, cfg.accel, h); ref.start_segment(distance, steer_dir, gear, profile); reset_encoders(); odo.reset_segment(); position_vehicle = 0.0; pos_ctrl.reset(); steer_ctrl.reset()
         while abs(position_vehicle) <= distance and elapsed_time / 1000.0 < elapsed_time_max:
             if read_command() == 'STOP': stop_car(); return 'stop'
             if motors_stalled(): stop_car(); return 'stall'
-            ref.advance(); position_vehicle = read_position(); steering_vehicle = read_heading(); position_error = ref.position - position_vehicle; steering_error = umath.degrees(ref.heading) - steering_vehicle; ds = odo.update(position_vehicle, steering_vehicle); (e_s, e_y) = odo.tracking_errors(ref); (position_command, position_P, position_I) = pos_ctrl.update(position_error); k_lead = curvature_preview(nxt, gear, distance, abs(position_vehicle), kappa_ref); (steering_command, steering_P, steering_I) = steer_ctrl.update(gear, steering_error, e_y, e_s, ds, kappa_ref, k_lead); audi.steer(steering_command); audi.drive_power(position_command); next_tick += h; rem = next_tick - run_watch.time()
+            ref.advance(); position_vehicle = read_position(); steering_vehicle = read_heading(); position_error = ref.position - position_vehicle; steering_error = umath.degrees(ref.heading) - steering_vehicle; odo.update(position_vehicle, steering_vehicle); (e_s, e_y) = odo.tracking_errors(ref); (position_command, position_P, position_I) = pos_ctrl.update(position_error); (steering_command, steering_P, steering_I) = steer_ctrl.update(gear, steering_error); audi.steer(steering_command); audi.drive_power(position_command); next_tick += h; rem = next_tick - run_watch.time()
             if rem > 0: wait(rem)
             elif rem < 0:
                 overruns += 1
@@ -465,17 +333,17 @@ def run_trajectory(PATH):
     run_watch.reset(); hub.light.on(Color.ORANGE)
     if cfg.legs is None:
         (cfg.legs, cfg.legs_total) = build_legs(PATH)
-        if cfg.legs is None: print('ERR sin solucion {}'.format(cfg.algorithm)); print('END error'); hub.light.on(Color.RED); return
+        if cfg.legs is None: print('ERR sin solucion'); print('END error'); hub.light.on(Color.RED); return
         send_plan(cfg.legs, PATH)
     legs = cfg.legs; seg_total = cfg.legs_total; gc.collect(); seg_offset = 0
     for i in range(len(legs)):
         status = controlDelVehiculo(legs[i], PATH[i], seg_offset, seg_total); seg_offset += len(legs[i])
         if status != 'ok': print('END ' + status); hub.light.on(Color.RED); return
     print('END ok'); hub.light.on(Color.GREEN)
-SETTERS = {'PI': set_gains, 'PROF': set_profile, 'ACC': set_accel, 'VEL': set_velocity, 'ALG': set_algorithm, 'CTRL': set_controller, 'SMC': set_smc}
+SETTERS = {'PI': set_gains, 'PROF': set_profile, 'ACC': set_accel, 'VEL': set_velocity}
 def main():
 
-    setup(); PATH = None; print('RDY'); print('VER 16 modular'); send_battery()
+    setup(); PATH = None; print('RDY'); print('VER 17 RS+PI'); send_battery()
     while True:
         line = read_command()
         if line is None: wait(20); continue

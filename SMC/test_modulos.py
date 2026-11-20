@@ -11,7 +11,7 @@ sys.modules['umath'] = math
 from velocity_profile import make_profile, ConstantProfile
 from reference import Reference
 from odometry import Odometry
-from settings import cfg, parse_path, set_velocity, set_profile, set_accel, set_gains, set_algorithm
+from settings import cfg, parse_path, set_velocity, set_profile, set_accel, set_gains
 
 ok = True
 def check(name, cond):
@@ -71,8 +71,6 @@ check('VEL invalido', (not set_velocity('-3')) and cfg.velocity == 40.0)
 check('PROF', set_profile('const') and cfg.profile == 'CONST' and not set_profile('xxx'))
 check('ACC', set_accel('60') and cfg.accel == 60.0 and not set_accel('-1'))
 check('PI', set_gains('50,0.01,25,0.02') and cfg.gains['kp_st'] == 25.0 and not set_gains('1,2,3'))
-cfg.legs = [1]; set_algorithm('DUBINS')
-check('ALG invalida la trayectoria cacheada', cfg.legs is None and cfg.algorithm == 'DUBINS')
 
 # --- antiwindup de los PI (controllers.integrate) ---
 # controllers importa pybricks-free modulos (settings, smc_control): se puede probar en la PC

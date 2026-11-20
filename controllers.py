@@ -3,26 +3,20 @@
 # =============================================================================
 # Cada tick el lazo principal (main_rs.py) compara donde ESTA el auto con donde
 # DEBERIA estar (la referencia) y estos controladores deciden la potencia de los
-# motores. Hay dos lazos independientes:
+# motores. Hay dos lazos independientes (los dos son la misma clase PI):
 #
 #   TRACCION    PI           sigue el arco recorrido de la referencia
 #                            (error = arco_ref - arco_auto [cm])
 #
 #   DIRECCION   SteeringPI   (el mismo PI, otras ganancias) sigue el RUMBO de la referencia
-#               SteeringSMC  modo deslizante: sigue rumbo y error lateral a la vez,
-#                            con feedforward de curvatura (matematica en smc_control.py)
 #
-# Los tres tienen la misma interfaz: update(...) -> (comando, parte_P, parte_I)
-# donde comando es el porcentaje de potencia ya saturado, y P / I son lo que se
-# muestra en las barras del dashboard (en SMC: P = control equivalente, I = conmutado).
+# update(...) -> (comando, parte_P, parte_I): comando es el porcentaje de potencia
+# ya saturado, y P / I son lo que se muestra en las barras del dashboard.
 #
 # Sin hardware: se prueba en la PC con numeros inventados.
 # =============================================================================
-import umath
-
-from vehicleConstants import max_angle_power, max_drive_power, r_turn_min, L_car
+from vehicleConstants import max_angle_power, max_drive_power
 from settings import cfg, LOOP_MS, KI_REF_MS
-from smc_control import LateralSMC
 
 
 def saturate(value, limit):
@@ -82,60 +76,20 @@ def make_position_controller(h=LOOP_MS):
 
 class SteeringPI:
     """PI de DIRECCION sobre el error de rumbo [grados]: el mismo PI de arriba (con
-    las ganancias de direccion) mas la inversion de sentido en marcha atras (gear).
-    Tiene la misma interfaz que SteeringSMC para que el lazo principal los intercambie."""
+    las ganancias de direccion) mas la inversion de sentido en marcha atras (gear)."""
 
     def __init__(self, h=LOOP_MS):
         self.pi = PI('kp_st', 'ki_st', max_angle_power, h)
-        self.s = 0.0           # (solo el SMC lo usa: superficie de deslizamiento)
+        self.s = 0.0           # campo 'ss' de la telemetria (reservado, siempre 0)
 
     def reset(self):
         self.pi.reset()
 
-    def update(self, gear, steering_error, *unused):
+    def update(self, gear, steering_error):
         command, p, i = self.pi.update(steering_error)
         return gear * command, p, i
 
 
-class SteeringSMC:
-    """Direccion por modos deslizantes (ver smc_control.py y SMC/SMC_diseno.md).
-    Superficie s = e_g + lambda*gear*e_y: junta error de rumbo y error lateral."""
-
-    def __init__(self, *unused):
-        sm = cfg.smc
-        self.smc = LateralSMC(L_car, sm['psi'], sm['lam'], sm['eta'], sm['phi'], sm['ki'])
-        self.s = 0.0
-
-    def reset(self):
-        self.smc.reset()
-
-    def update(self, gear, steering_error, e_y, e_s, ds, kappa_ref, k_lead):
-        """steering_error en grados; kappa_ref y k_lead en 1/cm (+ = izquierda)."""
-        pct = self.smc.update(gear, umath.radians(steering_error), e_y, e_s,
-                              kappa_ref, abs(ds), k_lead)
-        self.s = self.smc.s
-        # El SMC trabaja en convencion matematica (+ = izquierda); el hub usa compass
-        # (CW +): de ahi el signo menos.
-        command = saturate(-pct, max_angle_power)
-        # Para las barras del dashboard (la telemetria las multiplica por gear, por eso
-        # se divide aca): P = control equivalente, I = termino conmutado.
-        return command, -gear * self.smc.pct_eq, -gear * self.smc.pct_sw
-
-
-def curvature_preview(nxt, gear, distance, travelled, kappa_ref):
-    """Anticipacion de curvatura del SMC: durante los ultimos velocity*tlead cm de un
-    segmento, si el siguiente sigue en el mismo sentido, usa su curvatura (el servo
-    de direccion tarda y no puede cambiar de curvatura de golpe).
-      nxt        segmento siguiente (dict) o None
-      travelled  arco ya recorrido en el segmento [cm]"""
-    if (nxt is not None and nxt['gear'] == gear and
-            distance - travelled < cfg.velocity * cfg.smc['tlead']):
-        return -nxt['steering'] / r_turn_min
-    return kappa_ref
-
-
-def make_steering_controller(kind):
-    """Devuelve el controlador de direccion elegido ('PI' o 'SMC')."""
-    if kind == 'SMC':
-        return SteeringSMC()
-    return SteeringPI()
+def make_steering_controller(h=LOOP_MS):
+    """Controlador de DIRECCION."""
+    return SteeringPI(h)

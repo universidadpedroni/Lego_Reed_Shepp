@@ -10,9 +10,7 @@
 #   steering  -1 curva a la izquierda, 0 recta, +1 curva a la derecha (radio r_turn_min)
 #   gear      +1 marcha adelante, -1 marcha atras
 #
-# El planner es intercambiable (comando ALG):
-#   RS      Reeds-Shepp  (reeds_shepp.py): camino mas corto con marcha atras permitida
-#   DUBINS  Dubins       (dubinsPathPlanning.py): solo hacia adelante
+# El planner es Reeds-Shepp (reeds_shepp.py): camino mas corto con marcha atras permitida.
 #
 # Tambien arma el camino de TODO el recorrido (build_legs), descarta segmentos de
 # distancia casi nula, y manda el camino planificado al dashboard para graficarlo.
@@ -22,24 +20,19 @@ import umath
 import gc
 
 from reeds_shepp import get_best_path, normalize_start_and_end_point, denormalize_distance_in_path
-from dubinsPathPlanning import get_best_dubins
 from vehicleConstants import r_turn_min
 from settings import cfg
 from odometry import make_frame
 
-# Reeds-Shepp y Dubins generan segmentos de transicion de distancia casi nula (los
+# Reeds-Shepp genera segmentos de transicion de distancia casi nula (los
 # giros 't' y 'v' de las curvas CSC suelen dar 0). Si llegaran al lazo de control, la
 # referencia no avanzaria y el auto quedaria clavado hasta el watchdog. Se descartan.
 MIN_SEG_DISTANCE = 1.0   # [cm]
 
 
 def plan_leg(start_pose, end_pose):
-    """Planifica UN tramo (de una pose a la siguiente) con el planner elegido en
-    cfg.algorithm. Devuelve la lista de segmentos (distancias en cm), o None si no
+    """Planifica UN tramo (de una pose a la siguiente) con Reeds-Shepp. Devuelve la lista de segmentos (distancias en cm), o None si no
     hay solucion."""
-    if cfg.algorithm == 'DUBINS':
-        return get_best_dubins(start_pose, end_pose, r_turn_min)
-    # Reeds-Shepp (default)
     sp, ep = normalize_start_and_end_point(start_pose, end_pose, r_turn_min)
     best = get_best_path(sp, ep)
     if best is None:
