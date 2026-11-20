@@ -6,6 +6,8 @@
 #   pybricksdev run ble main_bundle.py   (o abrir main_bundle.py en VS Code y F5)
 #
 # Hay que volver a correrlo cada vez que se edite algun .py del hub.
+# En el bundle todos los modulos comparten UN namespace: usar `from modulo import nombre`
+# (nunca `import modulo` + modulo.nombre) y no repetir nombres globales entre modulos.
 # No modifica ninguno de los originales. Quita de cada modulo: imports locales,
 # imports repetidos (se hoistean arriba), bloques `if __name__ == "__main__"` (salvo
 # el de main_rs) y las funciones run_test (codigo de prueba, ahorra RAM en el hub).
@@ -14,9 +16,49 @@ import ast, os, sys, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-ORDER = ['vehicleConstants', 'controlConstants', 'reeds_shepp',
-         'dubinsPathPlanning', 'smc_control', 'main_rs']
+# Orden de dependencias: cada modulo despues de los que importa.
+ORDER = ['vehicleConstants', 'controlConstants', 'reeds_shepp', 'dubinsPathPlanning',
+         'smc_control', 'settings', 'velocity_profile', 'reference', 'odometry',
+         'hardware', 'comms', 'trajectory', 'controllers', 'main_rs']
 LOCAL = set(ORDER)
+
+
+def strip_comments_and_docstrings(text):
+    """Reduce el tamano del bundle (el hub compila el archivo en RAM): quita los
+    comentarios de linea completa, los comentarios al final de linea y las docstrings.
+    Los .py originales NO se tocan. Usa tokenize/ast, no regex: no rompe strings."""
+    import io, tokenize
+    # docstrings: lineas [lineno, end_lineno] de la primera Expr-string de cada cuerpo
+    doc_ranges = []
+    tree = ast.parse(text)
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.FunctionDef, ast.ClassDef)):
+            body = node.body
+            if body and isinstance(body[0], ast.Expr) and isinstance(getattr(body[0], 'value', None), ast.Constant) \
+                    and isinstance(body[0].value.value, str):
+                doc_ranges.append((body[0].lineno, body[0].end_lineno, len(body) == 1,
+                                   body[0].col_offset))
+    lines = text.split('\n')
+    for a, b, only, col in sorted(doc_ranges, reverse=True):
+        if only:
+            lines[a - 1:b] = [' ' * col + 'pass']          # cuerpo vacio -> pass
+        else:
+            del lines[a - 1:b]
+    text = '\n'.join(lines)
+    # comentarios
+    out = []
+    toks = list(tokenize.generate_tokens(io.StringIO(text).readline))
+    cut = {}   # (fila) -> columna desde la que se corta (comentario)
+    for t in toks:
+        if t.type == tokenize.COMMENT:
+            cut[t.start[0]] = t.start[1]
+    for i, l in enumerate(text.split('\n'), 1):
+        if i in cut:
+            l = l[:cut[i]].rstrip()
+        if l.strip() == '':
+            continue
+        out.append(l)
+    return '\n'.join(out)
 
 
 def read(name):
@@ -47,7 +89,7 @@ def build():
                 # incluye decoradores/comentarios pegados: solo el cuerpo de la funcion
                 drop.update(rng)
         kept = [l for i, l in enumerate(lines) if i not in drop]
-        text = '\n'.join(kept).strip('\n')
+        text = strip_comments_and_docstrings('\n'.join(kept).strip('\n'))
         bodies.append('# ' + '=' * 76 + '\n# ---- modulo: {}.py\n# '.format(mod) + '=' * 76 + '\n' + text)
     head = ('# ' + '=' * 76 + '\n'
             '# main_bundle.py - GENERADO por SMC/make_bundle.py ({}). NO EDITAR A MANO:\n'

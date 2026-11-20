@@ -85,6 +85,19 @@ def dense_reference(leg, step=0.2):
     return np.array(pts), th
 
 
+ANTIWINDUP = True    # integracion condicional + tope duro (igual que controllers.integrate)
+
+
+def integrate(integral, p, delta, limit):
+    new = integral + delta
+    if ANTIWINDUP:
+        u = p + new
+        if (u > limit and delta > 0) or (u < -limit and delta < 0):
+            new = integral
+        new = max(-limit, min(limit, new))
+    return new
+
+
 def sat_i(v, lim):
     return int(min(max(v, -lim), lim))
 
@@ -199,7 +212,7 @@ def run(leg, ctrl, P, lat=None, spd=None, tmax=30.0, t_lead=0.0):
                 u_dr = sat_i(u_dr, 100)
             else:
                 position_P = KP_POS * position_error
-                position_I += KI_POS * (H_MS / KI_REF_MS) * position_error
+                position_I = integrate(position_I, position_P, KI_POS * (H_MS / KI_REF_MS) * position_error, 100)
                 u_dr = sat_i(position_P + position_I, 100)
 
             # ---- curvatura anticipada (preview) para el feedforward ----
@@ -211,7 +224,7 @@ def run(leg, ctrl, P, lat=None, spd=None, tmax=30.0, t_lead=0.0):
             # ---- comando de DIRECCION ----
             if ctrl in ('PI', 'PIFF'):
                 steering_P = KP_ST * steering_error
-                steering_I += KI_ST * (H_MS / KI_REF_MS) * steering_error
+                steering_I = integrate(steering_I, steering_P, KI_ST * (H_MS / KI_REF_MS) * steering_error, 100)
                 u_st = gear * sat_i(steering_P + steering_I, 100)
                 if ctrl == 'PIFF':        # feedforward: delta = atan(L*kappa) en % (compass: signo -)
                     ff = 100.0 * math.atan(L_CAR * kappa_lead) / math.radians(PSI_MAX)

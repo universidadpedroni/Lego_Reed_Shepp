@@ -78,13 +78,13 @@ mod('uselect', poll=lambda: types.SimpleNamespace(register=lambda x: None, poll=
 import numpy as np
 import importlib
 F = importlib.import_module(os.environ.get('FW_MODULE', 'main_rs'))   # FW_MODULE=main_bundle prueba el archivo unico
-F.VELOCITY = float(os.environ.get('VEL', '17'))   # velocidad real de prueba [cm/s]
+F.cfg.velocity = float(os.environ.get('VEL', '17'))   # velocidad real de prueba [cm/s]
 
 def run(controller):
     for k in state: state[k] = 0.0
     log.clear()
-    F.CONTROLLER = controller
-    F.SMC_PARAMS.update(lam=0.035, eta=0.008, phi=0.05, ki=0.0, tlead=0.2, psi=20.0)
+    F.cfg.controller = controller
+    F.cfg.smc.update(lam=0.035, eta=0.008, phi=0.05, ki=0.0, tlead=0.2, psi=20.0)
     leg = S.plan([120, 60, -90])
     buf = io.StringIO()
     with contextlib.redirect_stdout(buf):
@@ -104,6 +104,8 @@ res = {}
 for c in ('PI', 'SMC'):
     status, d, nf, ey, loop, out = run(c)
     res[c] = d
+    if os.environ.get('DUMP'):
+        open(os.environ['DUMP'] + '_' + c + '.txt', 'w').write('\n'.join(out))
     print('%-4s estado=%s campos_T=%d d_rms=%.2f d_max=%.2f cm  e_y_estimado rms=%.2f max=%.2f  %s' % (
         c, status, nf, np.sqrt((d ** 2).mean()), d.max(), np.sqrt(np.mean(np.square(ey))), np.max(np.abs(ey)), loop))
     ok &= (status == 'ok' and nf == 17)
